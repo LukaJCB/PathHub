@@ -179,7 +179,7 @@ describe("Registration + login flow", () => {
     })
 
     expect(res.statusCode).toBe(401)
-    expect(decode(res.rawPayload)).toEqual({})
+    expect(res.body).toBe("")
 
     const fakeUsername = "no-such-user@example.com"
     const finishLoginRequest2 = Buffer.from(crypto.getRandomValues(new Uint8Array(64)))
@@ -197,7 +197,7 @@ describe("Registration + login flow", () => {
     })
 
     expect(res2.statusCode).toBe(401)
-    expect(decode(res2.rawPayload)).toEqual({})
+    expect(res2.body).toBe("")
 
     expect(res2.body).toBe(res.body)
   })

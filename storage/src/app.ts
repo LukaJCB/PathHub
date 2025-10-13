@@ -96,7 +96,7 @@ export async function build(config: {
     putContentSchema,
     async (req, reply) => {
       const user = await authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send(encode({}))
+      if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
       if (req.headers["content-type"] !== "application/octet-stream") {
         return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
@@ -141,7 +141,7 @@ export async function build(config: {
         }),
       )
 
-      return reply.code(204).send(encode({}))
+      return reply.code(204).send()
     },
   )
 
@@ -187,7 +187,7 @@ export async function build(config: {
 
   fastify.post<{ Body: Uint8Array[] }>("/content/batch", batchContentSchema, async (req, reply) => {
     const user = await authenticate(req.headers.authorization)
-    if (user.status === "error") return reply.code(401).type("application/cbor").send(encode({}))
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
     const objectIds = req.body
 

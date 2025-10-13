@@ -89,7 +89,7 @@ export async function build(config: {
 
     const userExists = await queryUserExists(fastify, username)
 
-    if (userExists) return reply.code(409).type("application/cbor").send(encode({}))
+    if (userExists) return reply.code(409).type("application/cbor").send()
 
     try {
       const { registrationResponse } = opaque.server.createRegistrationResponse({
@@ -256,7 +256,7 @@ export async function build(config: {
     const result = await getLoginState(fastify, username)
 
     if (result === undefined) {
-      return reply.code(401).type("application/cbor").send(encode({}))
+      return reply.code(401).type("application/cbor").send()
     } else {
       try {
         opaque.server.finishLogin({
@@ -276,7 +276,7 @@ export async function build(config: {
 
         return reply.code(200).type("application/cbor").send(encode({ token }))
       } catch (err) {
-        return reply.code(401).type("application/cbor").send(encode({}))
+        return reply.code(401).type("application/cbor").send()
       }
     }
   })
