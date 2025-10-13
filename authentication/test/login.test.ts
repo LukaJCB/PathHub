@@ -11,10 +11,9 @@ describe("Registration + login flow", () => {
   let privateKey: CryptoKey
   let publicKey: CryptoKey
 
-
   const username = `testuser@example.com-${Date.now()}`
   const password = "securepass123"
-  let userId: string 
+  let userId: string
 
   afterAll(async () => {
     await app.close()
@@ -25,14 +24,13 @@ describe("Registration + login flow", () => {
     const keyId = crypto.randomUUID()
     privateKey = priv
     publicKey = pub
-    app = await build(
-      serverSecret,
-      "postgres://postgres:postgres@localhost:5432/postgres",
-      privateKey,
+    app = await build({
+      opaqueSecret: serverSecret,
+      pgConnection: "postgres://postgres:postgres@localhost:5432/postgres",
+      signingKey: privateKey,
       publicKey,
-      keyId,
-    )
-    //register a user
+      publicKeyId: keyId,
+    })
 
     const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
 
@@ -76,7 +74,6 @@ describe("Registration + login flow", () => {
     })
 
     userId = decode(res2.rawPayload).userId
-
   })
 
   it("should respond identically for existing and non-existing users in startLogin", async () => {
@@ -161,10 +158,9 @@ describe("Registration + login flow", () => {
       algorithms: ["EdDSA"],
     })
 
-    expect(verified.payload['ph-user']).toBe(username)
+    expect(verified.payload["ph-user"]).toBe(username)
     expect(verified.payload.sub).toBeDefined
     expect(verified.payload.sub).toBe(userId)
-    
   })
 
   it("fails identically if finishLoginRequest is invalid or user doesn't exist", async () => {

@@ -30,19 +30,19 @@ interface FinishLoginBody {
   finishLoginRequest: string
 }
 
-export async function build(
-  opaqueSecret: string,
-  pgConnection: string,
-  signingKey: CryptoKey,
-  publicKey: CryptoKey,
-  publicKeyId: string,
-) {
+export async function build(config: {
+  opaqueSecret: string
+  pgConnection: string
+  signingKey: CryptoKey
+  publicKey: CryptoKey
+  publicKeyId: string
+}) {
   const fastify = Fastify()
 
   fastify.register(helmet, { global: true })
 
   fastify.register(postgres, {
-    connectionString: pgConnection,
+    connectionString: config.pgConnection,
   })
 
   fastify.addContentTypeParser("application/cbor", { parseAs: "buffer" }, (_req, body, done) => {
@@ -93,7 +93,7 @@ export async function build(
 
     try {
       const { registrationResponse } = opaque.server.createRegistrationResponse({
-        serverSetup: opaqueSecret,
+        serverSetup: config.opaqueSecret,
         userIdentifier: username,
         registrationRequest,
       })
@@ -202,7 +202,7 @@ export async function build(
     } else {
       try {
         const { loginResponse, serverLoginState } = opaque.server.startLogin({
-          serverSetup: opaqueSecret,
+          serverSetup: config.opaqueSecret,
           userIdentifier: username,
           registrationRecord: result,
           startLoginRequest,
@@ -264,16 +264,15 @@ export async function build(
           serverLoginState: result,
         })
 
-        
         const userId = await getUserId(fastify, username)
 
-        const token = await new SignJWT({ sub: userId, ['ph-user']: username })
+        const token = await new SignJWT({ sub: userId, ["ph-user"]: username })
           .setProtectedHeader({ alg: "EdDSA" })
           .setIssuedAt()
           .setNotBefore(Math.floor(Date.now() / 1000))
           .setExpirationTime("72h")
           .setIssuer("ph-auth")
-          .sign(signingKey)
+          .sign(config.signingKey)
 
         return reply.code(200).type("application/cbor").send(encode({ token }))
       } catch (err) {
@@ -319,12 +318,12 @@ export async function build(
   fastify.get<{
     Reply: { keys: JWKWithMeta[] }
   }>("/.well-known/jwks.json", jwksSchema, async (_req, reply) => {
-    const jwk = await exportJWK(publicKey)
+    const jwk = await exportJWK(config.publicKey)
     const withMeta: JWKWithMeta = {
       ...jwk,
       alg: "EdDSA",
       use: "sig",
-      kid: publicKeyId,
+      kid: config.publicKeyId,
     }
     reply.send({ keys: [withMeta] })
   })
@@ -361,10 +360,7 @@ async function getRegistrationRecord(fastify: Fastify.FastifyInstance, username:
 }
 
 async function getUserId(fastify: Fastify.FastifyInstance, username: string): Promise<string | undefined> {
-  const res = await fastify.pg.query<{ id: string }>(
-    "SELECT user_id as id FROM users WHERE username=$1",
-    [username],
-  )
+  const res = await fastify.pg.query<{ id: string }>("SELECT user_id as id FROM users WHERE username=$1", [username])
   if (res.rows.length < 1) {
     return undefined
   }

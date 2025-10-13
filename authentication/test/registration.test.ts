@@ -16,13 +16,13 @@ describe("Registration", () => {
     const keyId = crypto.randomUUID()
     privateKey = priv
     publicKey = pub
-    app = await build(
-      serverSecret,
-      "postgres://postgres:postgres@localhost:5432/postgres",
-      privateKey,
+    app = await build({
+      opaqueSecret: serverSecret,
+      pgConnection: "postgres://postgres:postgres@localhost:5432/postgres",
+      signingKey: privateKey,
       publicKey,
-      keyId,
-    )
+      publicKeyId: keyId,
+    })
   })
 
   afterAll(async () => {

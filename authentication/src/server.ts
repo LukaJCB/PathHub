@@ -22,13 +22,19 @@ const start = async () => {
   )
     throw new Error("Invalid env")
 
-  const signKeyData = Buffer.from(privateKey, "base64")
-  const verificationKeyData = Buffer.from(publicKey, "base64")
+  const signKeyData = Buffer.from(privateKey, "base64url")
+  const verificationKeyData = Buffer.from(publicKey, "base64url")
 
-  const signKey = await crypto.subtle.importKey("spki", signKeyData, "EdDSA", false, ["sign"])
+  const signingKey = await crypto.subtle.importKey("spki", signKeyData, "EdDSA", false, ["sign"])
   const verificationKey = await crypto.subtle.importKey("spki", verificationKeyData, "EdDSA", false, ["verify"])
 
-  const app = await build(serverSetup, pgConnection, signKey, verificationKey, keyId)
+  const app = await build({
+    opaqueSecret: serverSetup,
+    pgConnection,
+    signingKey,
+    publicKey: verificationKey,
+    publicKeyId: keyId,
+  })
   try {
     await app.listen({ port: 3000 })
     console.log("Server running at http://localhost:3000")
