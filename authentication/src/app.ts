@@ -17,6 +17,9 @@ interface FinishRegistrationBody {
   masterKeyNonce: Uint8Array
   encryptedRecoveryKey: Uint8Array
   recoveryKeyNonce: Uint8Array
+  passwordEncryptedMasterKey: Uint8Array
+  passwordMasterKeyNonce: Uint8Array
+  salt: Uint8Array
   signingPublicKey: Uint8Array
 }
 
@@ -121,6 +124,9 @@ export async function build(config: {
           "masterKeyNonce",
           "encryptedRecoveryKey",
           "recoveryKeyNonce",
+          "passwordEncryptedMasterKey",
+          "passwordMasterKeyNonce",
+          "salt",
           "signingPublicKey",
         ],
         properties: {
@@ -130,6 +136,9 @@ export async function build(config: {
           masterKeyNonce: { type: "object" },
           encryptedRecoveryKey: { type: "object" },
           recoveryKeyNonce: { type: "object" },
+          passwordEncryptedMasterKey: { type: "object" },
+          passwordMasterKeyNonce: { type: "object" },
+          salt: { type: "object" },
           signingPublicKey: { type: "object" },
         },
       },
@@ -240,6 +249,7 @@ export async function build(config: {
           type: "object",
           properties: {
             token: { type: "string" },
+            manifestId: { type: "string" },
           },
         },
         401: {
@@ -264,9 +274,9 @@ export async function build(config: {
           serverLoginState: result,
         })
 
-        const userId = await getUserId(fastify, username)
+        const userInfo = await getUserInfo(fastify, username)
 
-        const token = await new SignJWT({ sub: userId, ["ph-user"]: username })
+        const token = await new SignJWT({ sub: userInfo?.user, ["ph-user"]: username })
           .setProtectedHeader({ alg: "EdDSA" })
           .setIssuedAt()
           .setNotBefore(Math.floor(Date.now() / 1000))
@@ -274,7 +284,10 @@ export async function build(config: {
           .setIssuer("ph-auth")
           .sign(config.signingKey)
 
-        return reply.code(200).type("application/cbor").send(encode({ token }))
+        return reply
+          .code(200)
+          .type("application/cbor")
+          .send(encode({ token, manifest: userInfo?.manifest?.toString("base64url") }))
       } catch (err) {
         return reply.code(401).type("application/cbor").send()
       }
@@ -359,24 +372,43 @@ async function getRegistrationRecord(fastify: Fastify.FastifyInstance, username:
   return res.rows.at(0)?.record
 }
 
-async function getUserId(fastify: Fastify.FastifyInstance, username: string): Promise<string | undefined> {
-  const res = await fastify.pg.query<{ id: string }>("SELECT user_id as id FROM users WHERE username=$1", [username])
+async function getUserInfo(
+  fastify: Fastify.FastifyInstance,
+  username: string,
+): Promise<{ user: string; manifest: Buffer } | undefined> {
+  const res = await fastify.pg.query<{ user: string; manifest: Buffer }>(
+    "SELECT user_id as user, manifest_id as manifest FROM users WHERE username=$1",
+    [username],
+  )
   if (res.rows.length < 1) {
     return undefined
   }
 
-  return res.rows.at(0)?.id
+  return res.rows.at(0)
 }
 
 type SaveUserResult = { status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }
 
 async function saveUser(fastify: Fastify.FastifyInstance, user: FinishRegistrationBody): Promise<SaveUserResult> {
   const userId = crypto.randomUUID()
+  const manifestId = crypto.getRandomValues(new Uint8Array(16))
 
   try {
     await fastify.pg.query(
-      `INSERT INTO users (user_id, username, registration_record, encrypted_master_key, master_key_nonce, encrypted_recovery_key, recovery_key_nonce, signing_public_key) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO users (
+        user_id,
+        username,
+        registration_record,
+        encrypted_master_key,
+        master_key_nonce,
+        encrypted_recovery_key,
+        recovery_key_nonce,
+        password_encrypted_master_key,
+        password_master_key_nonce,
+        salt,
+        signing_public_key,
+        manifest_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         userId,
         user.username,
@@ -385,11 +417,16 @@ async function saveUser(fastify: Fastify.FastifyInstance, user: FinishRegistrati
         Buffer.from(user.masterKeyNonce),
         Buffer.from(user.encryptedRecoveryKey),
         Buffer.from(user.recoveryKeyNonce),
+        Buffer.from(user.passwordEncryptedMasterKey),
+        Buffer.from(user.passwordMasterKeyNonce),
+        Buffer.from(user.salt),
         Buffer.from(user.signingPublicKey),
+        manifestId,
       ],
     )
     return { status: "ok", userId }
   } catch (err) {
+    console.log(err)
     if (err && typeof err === "object" && "code" in err) {
       if (err.code === "23505") {
         return { status: "conflict", reason: "username_exists" }

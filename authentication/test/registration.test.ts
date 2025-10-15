@@ -146,6 +146,9 @@ describe("Registration", () => {
         masterKeyNonce: new Uint8Array([4, 5, 6]),
         encryptedRecoveryKey: new Uint8Array([7, 8, 9]),
         recoveryKeyNonce: new Uint8Array([10, 11, 12]),
+        passwordEncryptedMasterKey: new Uint8Array([1, 2, 3]),
+        passwordMasterKeyNonce: new Uint8Array([1, 2, 3]),
+        salt: new Uint8Array([1, 2, 3]),
         signingPublicKey: new Uint8Array([13, 14, 15]),
       }),
     })

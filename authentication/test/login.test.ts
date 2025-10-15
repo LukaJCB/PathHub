@@ -60,6 +60,9 @@ describe("Registration + login flow", () => {
       masterKeyNonce: new Uint8Array([4, 5, 6]),
       encryptedRecoveryKey: new Uint8Array([7, 8, 9]),
       recoveryKeyNonce: new Uint8Array([10, 11, 12]),
+      passwordEncryptedMasterKey: new Uint8Array([1, 2, 3]),
+      passwordMasterKeyNonce: new Uint8Array([1, 2, 3]),
+      salt: new Uint8Array([1, 2, 3]),
       signingPublicKey: new Uint8Array([13, 14, 15]),
     }
 
@@ -141,8 +144,10 @@ describe("Registration + login flow", () => {
     })
 
     expect(res2.statusCode).toBe(200)
-    const { token: receivedToken } = decode(res2.rawPayload)
+    const { token: receivedToken, manifest } = decode(res2.rawPayload)
     expect(receivedToken).toBeDefined()
+    expect(manifest).toBeDefined()
+    expect(typeof manifest === "string" && manifest.length === 22).toBe(true)
     const token = receivedToken
 
     const jwks = await app.inject({

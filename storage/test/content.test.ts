@@ -405,4 +405,43 @@ describe("MinIO content upload and fetch", () => {
     const decoded = decode(res2.rawPayload)
     expect(decoded).toEqual({ error: "This object is restricted" })
   })
+
+  it("should reject JWTs with alg: none", async () => {
+    const header = {
+      alg: "none",
+      typ: "JWT",
+    }
+    const payload = {
+      sub: "attacker",
+      "ph-user": "hacker",
+      iss: "ph-auth",
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }
+
+    const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url")
+
+    const unsignedToken = `${base64url(header)}.${base64url(payload)}.`
+
+    const objectId = Buffer.from(randomBytes(16)).toString("base64url")
+    const binaryContent = Buffer.from("hello world")
+
+    const meta = {
+      nonce: randomBytes(16),
+    }
+    const metaHeader = Buffer.from(encode(meta)).toString("base64url")
+
+    const res = await app.inject({
+      method: "PUT",
+      url: `/content/${objectId}`,
+      headers: {
+        authorization: `Bearer ${unsignedToken}`,
+        "content-type": "application/octet-stream",
+        "x-ph-meta": metaHeader,
+      },
+      payload: binaryContent,
+    })
+
+    expect(res.statusCode).toBe(401)
+  })
 })

@@ -404,11 +404,38 @@ describe("Message broker", () => {
         "content-type": "application/cbor",
         accept: "application/cbor",
       },
-      payload: encode({foo: 'bar'}),
+      payload: encode({ foo: "bar" }),
     })
 
-    console.log(res.body)
     expect(res.statusCode).toBe(400)
   })
 
+  it("should reject JWTs with alg: none", async () => {
+    const header = {
+      alg: "none",
+      typ: "JWT",
+    }
+    const payload = {
+      sub: "attacker",
+      "ph-user": "hacker",
+      iss: "ph-auth",
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }
+
+    const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString("base64url")
+
+    const unsignedToken = `${base64url(header)}.${base64url(payload)}.`
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/messages",
+      headers: {
+        authorization: `Bearer ${unsignedToken}`,
+        accept: "application/cbor",
+      },
+    })
+
+    expect(res.statusCode).toBe(401)
+  })
 })
