@@ -84,3 +84,15 @@ All messages are meant to be encrypted before sending them to this service.
 
 Instead of generating random 128 bit values as objectIds, the objectIds could be hashes of the content. 
 That way the client could always guarantee that the content they fetched is the content someone linked them to and thus would need to trust the server less.
+This would require introducing mutable pointers, because updating an object would change the hash and therefore the objectId.
+Going further the entire storage layer could be achieved just by using IPFS.
+
+
+### Federation using ActivityPub
+
+To further reduce reliance on a central server, the message broker service could be expanded to use ActivityPub style message passing so that users from one instance could follow users from another instance and receive their MLS messages.
+There are further changes to the other services on the server that would need to be made to enable this.
+
+### Key Transparency
+To prevent the server from being able to perform MITM attacks using key substituion, there needs to be a robust key transparency system in place.
+Consider something like https://github.com/fedi-e2ee/pkd-server-go or https://github.com/facebook/akd.
