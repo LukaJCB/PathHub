@@ -12,6 +12,9 @@ The owner then sends their post manifest to the group, the new followers can the
 When someone is removed as a follower they are also removed from the group.
 As such they will no longer receive any updates if the owner uploads a new post, and the client will delete any of its existing DEKs it has received from the owner.
 
+At any time a user can choose to rotate the DEK to any of their posts by generating a new key, re-encrypting the post, updating the DEK in their manifest and sharing it to their group.
+This can be beneficial in the case where a user that was removed is known to use a malicious client that never deletes keys. This would stop them from being able to access the content (though the malicious user could still have a local unecrypted copy of the post).
+
 To recap, every user will have a post manifest that contains all their DEKs and objectIDs, they will share this with all their followers securely using an MLS group that represents them and their followers.
 
 This pseudo code represents the structure every user has to store locally to use the application:
@@ -24,6 +27,13 @@ type LocalState = {
   followeeManifests: Map<UserId, PostManifest>
 }
 ```
+
+## Post interaction
+
+All followers of an owner should be able to interact with any posts by the owner and be able to see other followers' interactions, e.g. comments on a post.
+To enable this, the follower sends a message to the MLS group, then all other followers and the owner can all see the interaction.
+Furthermore the owner can save the interactions alongside the original post so that in the future, new followers can access these interactions.
+Additionally all interactions should be signed as well so that an owner couldn't falsly claim that an interaction the owner itself created was created by someone else.
 
 ## Key Storage & Multi-device support
 
@@ -63,5 +73,14 @@ Furthermore the GET endpoint will not expose the owner's id, so without decrypti
 
 This service allows a user to send message to a number of recipients.
 The message is stored on the server until all recipients have acknowledged it, or until it expires after some time.
+Once a client has received and processed a message, the client should send a request to the server to acknowledge it.
+All endpoints on this service are restricted to the user in the JWT passed to the service.
 All messages are meant to be encrypted before sending them to this service.
-All clients should periodically fetch new messages from this service and acknowledge any messages it has processed.
+
+
+## Future improvement ideas
+
+### Use Content-addressable storage
+
+Instead of generating random 128 bit values as objectIds, the objectIds could be hashes of the content. 
+That way the client could always guarantee that the content they fetched is the content someone linked them to and thus would need to trust the server less.
