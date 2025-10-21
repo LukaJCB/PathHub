@@ -86,7 +86,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })
@@ -213,7 +213,7 @@ describe("MinIO content upload and fetch", () => {
       url: `/content/${objectId}`,
       headers: {
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     } as const
@@ -245,7 +245,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "text/plain",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })
@@ -284,7 +284,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })
@@ -310,7 +310,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })
@@ -328,7 +328,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader2,
+        "x-ph-nonce": metaHeader2,
       },
       payload: updatedBinaryFile,
     })
@@ -371,7 +371,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })
@@ -396,7 +396,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${newToken}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader2,
+        "x-ph-nonce": metaHeader2,
       },
       payload: Buffer.from("malicious overwrite"),
     })
@@ -437,7 +437,7 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${unsignedToken}`,
         "content-type": "application/octet-stream",
-        "x-ph-meta": metaHeader,
+        "x-ph-nonce": metaHeader,
       },
       payload: binaryContent,
     })

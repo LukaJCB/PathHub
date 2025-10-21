@@ -68,9 +68,9 @@ export async function build(config: {
       headers: {
         type: "object",
         properties: {
-          "x-ph-meta": { type: "string" },
+          "x-ph-nonce": { type: "string" },
         },
-        required: ["x-ph-meta"],
+        required: ["x-ph-nonce"],
       },
       response: {
         204: {
@@ -92,7 +92,7 @@ export async function build(config: {
     },
   }
 
-  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-meta": string } }>(
+  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string } }>(
     "/content/:objectId",
     putContentSchema,
     async (req, reply) => {
@@ -103,7 +103,7 @@ export async function build(config: {
         return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
       }
 
-      const metaHeader = req.headers["x-ph-meta"] //todo change to x-ph-nonce
+      const metaHeader = req.headers["x-ph-nonce"]
 
       const meta = parseMetaHeader(metaHeader)
 

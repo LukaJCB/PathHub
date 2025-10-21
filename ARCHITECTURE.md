@@ -1,7 +1,7 @@
 ## Post Storage and E2E Encryption
 
 Every user creates an MLS group for themselves, every other users that follows them is added to this group. 
-Whenever the owner wants to upload a post they generate a new aes key (data encryption key DEK) and encrypt the content with it. 
+Whenever the owner wants to upload a post they generate a new AES key (data encryption key, DEK) and encrypt the content with it.
 They then upload the encrypted content and obtain a unique objectId for that post.
 The owner then uses the MLS group to send the DEK to the group along with the object id, the owner also stores the objectId and DEK locally in their post manifest.
 The owner's followers receive the message and can then fetch the post and decrypt it using the DEK.
