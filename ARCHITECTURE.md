@@ -1,10 +1,11 @@
 ## Post Storage and E2E Encryption
 
 Every user creates an MLS group for themselves, every other users that follows them is added to this group. 
-Whenever the owner wants to upload a post they generate a new AES key (data encryption key, DEK) and encrypt the content with it.
-They then upload the encrypted content and obtain a unique objectId for that post.
-The owner then uses the MLS group to send the DEK to the group along with the object id, the owner also stores the objectId and DEK locally in their post manifest.
-The owner's followers receive the message and can then fetch the post and decrypt it using the DEK.
+Whenever the owner wants to upload a post they generate a new 256-bit post-secret.
+From the post-secret they derive a storage-key token and an AES-GCM key (data encryption key, DEK) using a KDF and use the DEK to encrypt the content with it.
+They then upload the encrypted content alongside the storage-key token and the nonce and obtain a unique objectId for that post.
+The owner then uses the MLS group to send the post-secret to the group along with the object id, the owner also stores the objectId and post-secret locally in their post manifest.
+The owner's followers receive the message and can then derive the storage-key and DEK and use them to fetch the post and decrypt it.
 
 If someone new is accepted as a follower of the owner they are added to the group. 
 The owner then sends their post manifest to the group, the new followers can then use the post manifest to fetch any content from the owner.
@@ -60,14 +61,11 @@ This JWT can be used to access the storage and message broker services.
 
 ### Storage Service
 
-This service stores encrypted binary blobs along with an userId marked as the owner and a nonce.
+This service stores encrypted binary blobs along with an userId marked as the owner, a key for authenticating reads and a nonce.
 Every blob is indexed by a randomly generated 128 bit value.
 The api allows to create or update a blob using a PUT endoint and allows retrieving via a GET endpoint. 
 Updating a blob is only possible if the userId in the JWT passed in the request matches the owner of the blob.
-Crucially the GET endpoint does not require privileged access, anyone with an account can access it.
-This is okay because there is no unencrypted metadata on the file and to access any file you would have to guess a 128 bit value which is all but impossible.
-Furthermore the GET endpoint will not expose the owner's id, so without decrypting it you won't know who the owner is or anything about the file you downloaded
-
+The GET endpoint requires passing the key, otherwise the service will return a 404 as if the blob blob didn't exist.
 
 ### Message Broker Service
 

@@ -74,11 +74,10 @@ describe("MinIO content upload and fetch", () => {
     const binaryContent = Buffer.from("hello world")
 
     const nonce = randomBytes(16)
-    const meta = {
-      nonce,
-    }
+    const keyToken = randomBytes(32)
 
-    const metaHeader = Buffer.from(encode(meta)).toString("base64url")
+    const nonceHeader = Buffer.from(nonce).toString("base64url")
+    const tokenHeader = Buffer.from(keyToken).toString("base64url")
 
     const putResponse = await app.inject({
       method: "PUT",
@@ -86,18 +85,19 @@ describe("MinIO content upload and fetch", () => {
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
-        "x-ph-nonce": metaHeader,
+        "x-ph-nonce": nonceHeader,
+        "x-ph-token": tokenHeader,
       },
       payload: binaryContent,
     })
-    return { putResponse, objectId, objectIdString, binaryContent }
+    return { putResponse, objectId, objectIdString, binaryContent, keyToken }
   }
 
   it("should return 404 when fetching a non-existent objectId", async () => {
     const nonExistentObjectId = Buffer.from(randomBytes(16))
     const objectIdString = nonExistentObjectId.toString("base64url")
 
-    const batchBody = encode([nonExistentObjectId])
+    const batchBody = encode([[nonExistentObjectId, nonExistentObjectId] as const])
 
     const batchResponse = await app.inject({
       method: "POST",
@@ -120,11 +120,11 @@ describe("MinIO content upload and fetch", () => {
   })
 
   it("should upload single file and retrieve it via batch", async () => {
-    const { putResponse, objectId, objectIdString, binaryContent } = await uploadRandomFile()
+    const { putResponse, objectId, objectIdString, binaryContent, keyToken } = await uploadRandomFile()
 
     expect(putResponse.statusCode).toBe(204)
 
-    const batchBody = encode([objectId])
+    const batchBody = encode([[objectId, keyToken] as const])
     const batchResponse = await app.inject({
       method: "POST",
       url: "/content/batch",
@@ -145,10 +145,23 @@ describe("MinIO content upload and fetch", () => {
   })
 
   it("should upload multiple files and retrieve them via batch", async () => {
-    const { objectId: objId1, objectIdString: idStr1, binaryContent: content1 } = await uploadRandomFile()
-    const { objectId: objId2, objectIdString: idStr2, binaryContent: content2 } = await uploadRandomFile()
+    const {
+      objectId: objId1,
+      objectIdString: idStr1,
+      binaryContent: content1,
+      keyToken: keyToken1,
+    } = await uploadRandomFile()
+    const {
+      objectId: objId2,
+      objectIdString: idStr2,
+      binaryContent: content2,
+      keyToken: keyToken2,
+    } = await uploadRandomFile()
 
-    const batchBody = encode([objId1, objId2])
+    const batchBody = encode([
+      [objId1, keyToken1],
+      [objId2, keyToken2],
+    ])
     const batchResponse = await app.inject({
       method: "POST",
       url: "/content/batch",
@@ -171,12 +184,15 @@ describe("MinIO content upload and fetch", () => {
   })
 
   it("should return 404 when fetching a non-existent objectId alongside an existent id", async () => {
-    const { objectId } = await uploadRandomFile()
+    const { objectId, keyToken } = await uploadRandomFile()
 
     const nonExistentObjectId = Buffer.from(randomBytes(16))
     const nonExistentObjectIdString = nonExistentObjectId.toString("base64url")
 
-    const batchBody = encode([objectId, nonExistentObjectId])
+    const batchBody = encode([
+      [objectId, keyToken],
+      [nonExistentObjectId, nonExistentObjectId],
+    ])
 
     const batchResponse = await app.inject({
       method: "POST",
@@ -272,26 +288,26 @@ describe("MinIO content upload and fetch", () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it("should return 400 when metadata header is invalid", async () => {
-    const objectId = Buffer.from(randomBytes(16)).toString("base64url")
-    const binaryContent = Buffer.from("hello world")
+  it("should return 404 when keyToken is invalid", async () => {
+    const { putResponse, objectId } = await uploadRandomFile()
 
-    const metaHeader = Buffer.from("invalidcbor12").toString("base64url")
+    expect(putResponse.statusCode).toBe(204)
 
-    const res = await app.inject({
-      method: "PUT",
-      url: `/content/${objectId}`,
+    const invalidKeyToken = randomBytes(32)
+
+    const batchBody = encode([[objectId, invalidKeyToken] as const])
+    const batchResponse = await app.inject({
+      method: "POST",
+      url: "/content/batch",
       headers: {
         authorization: `Bearer ${token}`,
-        "content-type": "application/octet-stream",
-        "x-ph-nonce": metaHeader,
+        "content-type": "application/cbor",
+        accept: "application/cbor",
       },
-      payload: binaryContent,
+      payload: batchBody,
     })
 
-    expect(res.statusCode).toBe(400)
-    const decoded = decode(res.rawPayload)
-    expect(decoded).toEqual({ error: "Invalid metadata header" })
+    expect(batchResponse.statusCode).toBe(404)
   })
 
   it("should allow update if object exists and is owned by same user", async () => {
@@ -299,10 +315,11 @@ describe("MinIO content upload and fetch", () => {
     const objectIdString = objectId.toString("base64url")
     const binaryContent = Buffer.from("first content")
 
-    const meta = {
-      nonce: randomBytes(16),
-    }
-    const metaHeader = Buffer.from(encode(meta)).toString("base64url")
+    const nonce = randomBytes(16)
+    const metaHeader = Buffer.from(nonce).toString("base64url")
+
+    const keyToken = randomBytes(32)
+    const tokenHeader = Buffer.from(keyToken).toString("base64url")
 
     const res1 = await app.inject({
       method: "PUT",
@@ -311,15 +328,18 @@ describe("MinIO content upload and fetch", () => {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
         "x-ph-nonce": metaHeader,
+        "x-ph-token": tokenHeader,
       },
       payload: binaryContent,
     })
     expect(res1.statusCode).toBe(204)
 
-    const meta2 = {
-      nonce: randomBytes(16),
-    }
-    const metaHeader2 = Buffer.from(encode(meta2)).toString("base64url")
+    const nonce2 = randomBytes(16)
+    const metaHeader2 = Buffer.from(nonce2).toString("base64url")
+
+    const keyToken2 = randomBytes(32)
+    const tokenHeader2 = Buffer.from(keyToken2).toString("base64url")
+
     const updatedBinaryFile = Buffer.from("overwrite")
 
     const res2 = await app.inject({
@@ -329,13 +349,14 @@ describe("MinIO content upload and fetch", () => {
         authorization: `Bearer ${token}`,
         "content-type": "application/octet-stream",
         "x-ph-nonce": metaHeader2,
+        "x-ph-token": tokenHeader2,
       },
       payload: updatedBinaryFile,
     })
 
     expect(res2.statusCode).toBe(204)
 
-    const batchBody = encode([objectId])
+    const batchBody = encode([[objectId, keyToken2]])
     const batchResponse = await app.inject({
       method: "POST",
       url: "/content/batch",

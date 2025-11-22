@@ -69,6 +69,7 @@ export async function build(config: {
         type: "object",
         properties: {
           "x-ph-nonce": { type: "string" },
+          "x-ph-token": { type: "string" },
         },
         required: ["x-ph-nonce"],
       },
@@ -92,7 +93,7 @@ export async function build(config: {
     },
   }
 
-  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string } }>(
+  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string; "x-ph-token": string } }>(
     "/content/:objectId",
     putContentSchema,
     async (req, reply) => {
@@ -103,11 +104,8 @@ export async function build(config: {
         return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
       }
 
-      const metaHeader = req.headers["x-ph-nonce"]
-
-      const meta = parseMetaHeader(metaHeader)
-
-      if (!meta) return reply.code(400).send(encode({ error: "Invalid metadata header" }))
+      const nonce = req.headers["x-ph-nonce"]
+      const token = req.headers["x-ph-token"]
 
       const objectId = req.params.objectId
       const key = shardObjectKey(objectId)
@@ -138,7 +136,7 @@ export async function build(config: {
           Key: key,
           Body: buffer,
           ContentType: "application/octet-stream",
-          Metadata: { nonce: meta.nonce, userId: user.userId },
+          Metadata: { nonce: nonce, token: token, userId: user.userId },
         }),
       )
 
@@ -150,7 +148,7 @@ export async function build(config: {
     schema: {
       body: {
         type: "array",
-        items: { type: "object" },
+        items: { type: "array", items: { type: "object", minItems: 2 } },
         minItems: 1,
       },
       response: {
@@ -186,16 +184,18 @@ export async function build(config: {
     }
   }
 
-  fastify.post<{ Body: Uint8Array[] }>("/content/batch", batchContentSchema, async (req, reply) => {
+  fastify.post<{ Body: [Uint8Array, Uint8Array][] }>("/content/batch", batchContentSchema, async (req, reply) => {
     const user = await authenticate(req.headers.authorization)
     if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-    const objectIds = req.body
+    const input = req.body
 
-    const objectIdStrings = objectIds.map((id) => Buffer.from(id).toString("base64url"))
+    const objectIdStrings = input.map(
+      (id) => [Buffer.from(id[0]).toString("base64url"), Buffer.from(id[1]).toString("base64url")] as const,
+    )
 
     try {
-      const fetches = objectIdStrings.map(async (objectId) => {
+      const fetches = objectIdStrings.map(async ([objectId, token]) => {
         const key = shardObjectKey(objectId)
         try {
           const obj = await s3.send(
@@ -204,6 +204,10 @@ export async function build(config: {
               Key: key,
             }),
           )
+
+          if (obj.Metadata?.["token"] !== token) {
+            throw new FetchError(objectId)
+          }
 
           const body = await streamToBuffer(obj.Body as Readable)
           return { objectId, body }
@@ -257,34 +261,6 @@ export async function build(config: {
 
 function isErrorWithName(err: unknown): err is { name: string } {
   return typeof err === "object" && err !== null && "name" in err && typeof err.name === "string"
-}
-
-function isMeta(obj: unknown): obj is { nonce: Uint8Array; userId: Uint8Array } {
-  return (
-    typeof obj === "object" &&
-    obj !== null &&
-    obj instanceof Object &&
-    "nonce" in obj &&
-    obj["nonce"] instanceof Uint8Array
-  )
-}
-
-function parseMetaHeader(header: string | undefined | string[]): { nonce: string } | undefined {
-  if (typeof header !== "string") return undefined
-  try {
-    const metaBuf = Buffer.from(header, "base64url")
-    const decoded = decode(metaBuf) as unknown
-
-    if (!isMeta(decoded)) {
-      return undefined
-    }
-
-    return {
-      nonce: Buffer.from(decoded.nonce).toString("base64url"),
-    }
-  } catch (e) {
-    return undefined
-  }
 }
 
 function shardObjectKey(objectId: string): string {

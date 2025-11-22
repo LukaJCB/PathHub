@@ -82,7 +82,7 @@ All this data should be included in a given post meta, so there should be no nee
 
 Once a user chooses to expand a post, they will be shown the post view, here the user will be able to see all the data.
 Thus, the client needs to fetch the actual post from the remote storage.
-The client knows where to fetch and decrypt the data from the objectId and DEK included in the post meta.
+The client knows where to fetch and decrypt the data from the objectId and post-secret included in the post meta.
 
 
 ## Viewing someone's profile
@@ -116,8 +116,8 @@ Then it also sends the latest version of the manifest to the group as an applica
 
 Once a user submits a post, the client will generate a post meta for the post.
 They then add the post meta onto their current post manifest and update the totals.
-Next the client generates a new DEK and encrypts the content with it. 
-(TODO Consider re-using DEKs when inside the same epoch, perhaps the DEK could just be the MLS exporter secret?)
+Next the client generates a new post-secret and encrypts the content with it. 
+(TODO Consider re-using post-secrets when inside the same epoch, perhaps the post-secret could just be the MLS exporter secret?)
 The encrypted content is then uploaded to the remote storage and a unique objectId for that post is returned.
 The owner then uses their MLS group to send the post meta to the group.
 
