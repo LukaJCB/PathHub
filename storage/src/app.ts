@@ -148,7 +148,7 @@ export async function build(config: {
     schema: {
       body: {
         type: "array",
-        items: { type: "array", items: { type: "object", minItems: 2 } },
+        items: { type: "array", items: { type: "object" }, minItems: 2 },
         minItems: 1,
       },
       response: {

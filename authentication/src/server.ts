@@ -25,8 +25,8 @@ const start = async () => {
   const signKeyData = Buffer.from(privateKey, "base64url")
   const verificationKeyData = Buffer.from(publicKey, "base64url")
 
-  const signingKey = await crypto.subtle.importKey("spki", signKeyData, "EdDSA", false, ["sign"])
-  const verificationKey = await crypto.subtle.importKey("spki", verificationKeyData, "EdDSA", false, ["verify"])
+  const signingKey = await crypto.subtle.importKey("pkcs8", signKeyData, "Ed25519", false, ["sign"])
+  const verificationKey = await crypto.subtle.importKey("spki", verificationKeyData, "Ed25519", true, ["verify"])
 
   const app = await build({
     opaqueSecret: serverSetup,

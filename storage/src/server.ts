@@ -25,12 +25,12 @@ const start = async () => {
 
   const verificationKeyData = Buffer.from(verificationKey, "base64url")
 
-  const publicKey = await crypto.subtle.importKey("spki", verificationKeyData, "EdDSA", false, ["verify"])
+  const publicKey = await crypto.subtle.importKey("spki", verificationKeyData, "Ed25519", false, ["verify"])
 
   const app = await build({ minioAccessKeyId, minioEndpoint, minioSecretAccessKey, publicKey, bucketName })
   try {
-    await app.listen({ port: 3000 })
-    console.log("Server running at http://localhost:3000")
+    await app.listen({ port: 3001 })
+    console.log("Server running at http://localhost:3001")
   } catch (err) {
     app.log.error(err)
     process.exit(1)

@@ -43,6 +43,8 @@
   "author": "lukajcb",
   "type": "module",
   "scripts": {
+    "start": "pnpm exec tsx src/server.ts",
+    "generate-keys": "node ./scripts/generate-keys.mjs",
     "build": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
