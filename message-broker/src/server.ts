@@ -10,26 +10,26 @@ const start = async () => {
 
   const messageTtlSeconds = process.env.MESSAGE_TTL_SECONDS
 
+  const ttl = parseInt(messageTtlSeconds!)
+
   if (
     pgConnection === undefined ||
     publicKey === undefined ||
-    messageTtlSeconds === undefined ||
-    typeof messageTtlSeconds !== "number"
+    messageTtlSeconds === undefined
   )
-    throw new Error("Invalid env")
+    throw new Error("Invalid env: " + (typeof messageTtlSeconds))
 
   const verificationKeyData = Buffer.from(publicKey, "base64url")
-
-  const verificationKey = await crypto.subtle.importKey("spki", verificationKeyData, "EdDSA", false, ["verify"])
+  const verificationKey = await crypto.subtle.importKey("spki", verificationKeyData, "Ed25519", true, ["verify"])
 
   const app = await build({
     pgConnection,
     publicKey: verificationKey,
-    messageTtlSeconds: messageTtlSeconds,
+    messageTtlSeconds: ttl,
   })
   try {
-    await app.listen({ port: 3000 })
-    console.log("Server running at http://localhost:3000")
+    await app.listen({ port: 3002 })
+    console.log("Server running at http://localhost:3002")
   } catch (err) {
     app.log.error(err)
     process.exit(1)

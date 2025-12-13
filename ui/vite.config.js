@@ -18,5 +18,11 @@ export default defineConfig({
             secure: false,
             rewrite: (path) => path.replace(/^\/storage/, ''),
         },
+        '/messaging': {
+            target: 'http://localhost:3002',
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path) => path.replace(/^\/messaging/, ''),
+        },
     },}
 })

@@ -42,6 +42,7 @@
   "author": "lukajcb",
   "type": "module",
   "scripts": {
+    "start": "pnpm exec tsx src/server.ts",
     "build": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",

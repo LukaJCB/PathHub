@@ -4,7 +4,7 @@ import { createAuthClient } from "../src/authClient.js"
 import { createMessageClient } from "../src/http/messageClient.js"
 
 const authBaseUrl = "http://localhost:3000"
-const messagingBaseUrl = "http://localhost:3001"
+const messagingBaseUrl = "http://localhost:3002"
 
 describe("Authentication + Messaging End-to-End", () => {
   const authClient = createAuthClient(authBaseUrl)
