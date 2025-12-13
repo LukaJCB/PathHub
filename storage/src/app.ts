@@ -69,9 +69,9 @@ export async function build(config: {
         type: "object",
         properties: {
           "x-ph-nonce": { type: "string" },
-          "x-ph-token": { type: "string" },
+          "x-ph-access": { type: "string" },
         },
-        required: ["x-ph-nonce"],
+        required: ["x-ph-nonce", "x-ph-access"],
       },
       response: {
         204: {
@@ -93,7 +93,7 @@ export async function build(config: {
     },
   }
 
-  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string; "x-ph-token": string } }>(
+  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string; "x-ph-access": string } }>(
     "/content/:objectId",
     putContentSchema,
     async (req, reply) => {
@@ -105,7 +105,7 @@ export async function build(config: {
       }
 
       const nonce = req.headers["x-ph-nonce"]
-      const token = req.headers["x-ph-token"]
+      const accessKey = req.headers["x-ph-access"]
 
       const objectId = req.params.objectId
       const key = shardObjectKey(objectId)
@@ -136,7 +136,7 @@ export async function build(config: {
           Key: key,
           Body: buffer,
           ContentType: "application/octet-stream",
-          Metadata: { nonce: nonce, token: token, userId: user.userId },
+          Metadata: { nonce: nonce, token: accessKey, userId: user.userId },
         }),
       )
 
@@ -210,7 +210,8 @@ export async function build(config: {
           }
 
           const body = await streamToBuffer(obj.Body as Readable)
-          return { objectId, body }
+          const nonce = obj.Metadata?.["nonce"]!
+          return { objectId, nonce, body }
         } catch (err) {
           if (isErrorWithName(err) && err.name === "NoSuchKey") {
             throw new FetchError(objectId)
@@ -221,9 +222,9 @@ export async function build(config: {
 
       const results = await Promise.all(fetches)
 
-      const responseMap: Record<string, Buffer> = {}
-      for (const { objectId, body } of results) {
-        responseMap[objectId] = body
+      const responseMap: Record<string, { body: Buffer; nonce: string }> = {}
+      for (const { objectId, body, nonce } of results) {
+        responseMap[objectId] = { body, nonce }
       }
 
       return reply.code(200).type("application/cbor").send(encode(responseMap))

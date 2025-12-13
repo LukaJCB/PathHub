@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-import { writeFile, access } from 'fs/promises'
-import { constants } from 'fs'
+import { writeFile, access } from "fs/promises"
+import { constants } from "fs"
 import * as opaque from "@serenity-kit/opaque"
 import { generateKeyPair } from "jose"
 
 function toBase64Url(buf) {
-  return Buffer.from(buf)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
+  return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
 async function fileExists(path) {
@@ -22,17 +18,16 @@ async function fileExists(path) {
 }
 
 async function main() {
-  const out = process.argv[2] || '.env'
-  const force = process.argv.includes('--force')
+  const out = process.argv[2] || ".env"
+  const force = process.argv.includes("--force")
 
-  if (await fileExists(out) && !force) {
+  if ((await fileExists(out)) && !force) {
     console.error(`Refusing to overwrite existing file ${out}. Pass --force to overwrite.`)
     process.exit(1)
   }
 
-  const { publicKey: pub, privateKey: priv } = await generateKeyPair("EdDSA", {extractable: true})
+  const { publicKey: pub, privateKey: priv } = await generateKeyPair("EdDSA", { extractable: true })
   const keyId = crypto.randomUUID()
-
 
   const privDer = await crypto.subtle.exportKey("pkcs8", priv)
   const pubDer = await crypto.subtle.exportKey("spki", pub)
@@ -50,12 +45,12 @@ SIGNATURE_PUBLIC_KEY=${publicB64}
 SIGNATURE_KEY_ID=${keyId}
 `
 
-  await writeFile(out, content, { encoding: 'utf8', mode: 0o600 })
+  await writeFile(out, content, { encoding: "utf8", mode: 0o600 })
 
   console.log(`Wrote ${out}`)
-  console.log('Private key (base64url):', privateB64)
-  console.log('Public key  (base64url):', publicB64)
-  console.log('OPAQUE secret        :', opaqueSecret)
+  console.log("Private key (base64url):", privateB64)
+  console.log("Public key  (base64url):", publicB64)
+  console.log("OPAQUE secret        :", opaqueSecret)
 }
 
 main().catch((err) => {

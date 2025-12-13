@@ -250,6 +250,9 @@ export async function build(config: {
           properties: {
             token: { type: "string" },
             manifestId: { type: "string" },
+            encryptedMasterKey: { type: "object" },
+            nonce: { type: "object" },
+            salt: { type: "object" },
           },
         },
         401: {
@@ -287,7 +290,15 @@ export async function build(config: {
         return reply
           .code(200)
           .type("application/cbor")
-          .send(encode({ token, manifest: userInfo?.manifest?.toString("base64url") }))
+          .send(
+            encode({
+              token,
+              manifest: userInfo?.manifest?.toString("base64url"),
+              encryptedMasterKey: userInfo?.key,
+              nonce: userInfo?.nonce,
+              salt: userInfo?.salt,
+            }),
+          )
       } catch (err) {
         return reply.code(401).type("application/cbor").send()
       }
@@ -375,9 +386,16 @@ async function getRegistrationRecord(fastify: Fastify.FastifyInstance, username:
 async function getUserInfo(
   fastify: Fastify.FastifyInstance,
   username: string,
-): Promise<{ user: string; manifest: Buffer } | undefined> {
-  const res = await fastify.pg.query<{ user: string; manifest: Buffer }>(
-    "SELECT user_id as user, manifest_id as manifest FROM users WHERE username=$1",
+): Promise<{ user: string; manifest: Buffer; key: Buffer; nonce: Buffer; salt: Buffer } | undefined> {
+  const res = await fastify.pg.query<{ user: string; manifest: Buffer; key: Buffer; nonce: Buffer; salt: Buffer }>(
+    `SELECT 
+      user_id as user, 
+      manifest_id as manifest, 
+      password_encrypted_master_key as key, 
+      password_master_key_nonce as nonce, 
+      salt 
+    FROM users 
+    WHERE username=$1`,
     [username],
   )
   if (res.rows.length < 1) {

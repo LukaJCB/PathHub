@@ -13,6 +13,9 @@ describe("Registration + login flow", () => {
 
   const username = `testuser@example.com-${Date.now()}`
   const password = "securepass123"
+  const passwordEncryptedMasterKey = new Uint8Array([1, 2, 3])
+  const passwordMasterKeyNonce = new Uint8Array([1, 2, 3])
+  const salt = new Uint8Array([1, 2, 3])
   let userId: string
 
   afterAll(async () => {
@@ -144,10 +147,17 @@ describe("Registration + login flow", () => {
     })
 
     expect(res2.statusCode).toBe(200)
-    const { token: receivedToken, manifest } = decode(res2.rawPayload)
+    const { token: receivedToken, manifest, encryptedMasterKey, nonce, salt: receivedSalt } = decode(res2.rawPayload)
     expect(receivedToken).toBeDefined()
     expect(manifest).toBeDefined()
     expect(typeof manifest === "string" && manifest.length === 22).toBe(true)
+
+    expect(new Uint8Array(encryptedMasterKey)).toEqual(passwordEncryptedMasterKey)
+
+    expect(new Uint8Array(nonce)).toEqual(passwordMasterKeyNonce)
+
+    expect(new Uint8Array(receivedSalt)).toEqual(salt)
+
     const token = receivedToken
 
     const jwks = await app.inject({
