@@ -1,6 +1,5 @@
-import { CiphersuiteImpl, createApplicationMessage, encodeMlsMessage, ClientState, bytesToBase64 } from "ts-mls"
-import { deriveGroupIdFromUserId } from "./mlsInteractions"
-import { CurrentPostManifest, DerivedMetrics, PostMeta, StorageIdentifier, upsertPost } from "./manifest"
+import { CiphersuiteImpl, createApplicationMessage, ClientState, bytesToBase64 } from "ts-mls"
+import { CurrentPostManifest, DerivedMetrics, Manifest2, overflowManifest, PostMeta, StorageIdentifier, upsertPost } from "./manifest"
 import { encode } from "cbor-x"
 import { MessageClient } from "./http/messageClient"
 
@@ -8,9 +7,9 @@ import { mlsExporter } from "ts-mls/keySchedule.js"
 import { Message } from "./message"
 
 import { LocalStore } from "./localStore"
-import { recipientsFromMlsState } from "./mlsInteractions"
-import { RemoteStore } from "./remoteStore"
-import { bytesToArrayBuffer, toBufferSource } from "ts-mls/util/byteArray.js"
+import { base64urlToUint8, RemoteStore } from "./remoteStore"
+import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { encodeCurrentPostManifest, encodeManifest } from "./codec/encode"
 
 export const postLimit = 20
 
@@ -19,24 +18,21 @@ export async function createPost(
   metrics: DerivedMetrics,
   title: string,
   userId: string,
-  manifest: CurrentPostManifest,
-  manifestId: Uint8Array,
+  postManifest: CurrentPostManifest,
+  postManifestId: StorageIdentifier,
   mlsGroup: ClientState,
+  manifest: Manifest2,
+  manifestId: Uint8Array,
   store: LocalStore,
   remoteStore: RemoteStore,
   messageClient: MessageClient,
   impl: CiphersuiteImpl,
   masterKey: Uint8Array
-): Promise<[ClientState, CurrentPostManifest]> {
+): Promise<[ClientState, CurrentPostManifest, Manifest2]> {
 
   //todo parallelize this with the updating of the manifest
   const storageIdentifier = await encryptAndStore(mlsGroup, impl, remoteStore, content)
-  
-  // update post manifest and totals
 
-  if (manifest.posts.length >= postLimit) {
-    //create new manifest and link old one
-  }
 
   const postMeta: PostMeta = {
     title,
@@ -51,43 +47,57 @@ export async function createPost(
     likes: undefined,
   }
 
-  const newManifest = await updateManifest(manifest, postMeta, masterKey, remoteStore, manifestId)
-
-
-  //await store.storeCurrentManifest(userId, newManifest, manifestId)
 
   // create MLS message of the post to group
   const msg: Message = { kind: "PostMessage", content: postMeta }
 
   const createMessageResult = await createApplicationMessage(mlsGroup, encode(msg), impl)
 
-  // send message and store group state
-  await Promise.all([
-    // messageClient.sendMessage({
-    //   payload: encodeMlsMessage({
-    //     version: "mls10",
-    //     wireformat: "mls_private_message",
-    //     privateMessage: createMessageResult.privateMessage,
-    //   }),
-    //   recipients: recipientsFromMlsState([userId], mlsGroup),
-    // }),
-    store.storeGroupState(createMessageResult.newState),
-  ])
+  // messageClient.sendMessage({
+  //   payload: encodeMlsMessage({
+  //     version: "mls10",
+  //     wireformat: "mls_private_message",
+  //     privateMessage: createMessageResult.privateMessage,
+  //   }),
+  //   recipients: recipientsFromMlsState([userId], mlsGroup),
+  // }),
 
-  return [createMessageResult.newState, newManifest] as const
+  if (postManifest.posts.length >= postLimit) {
+    //create new manifest and link old one
+
+    const newPostManifest = overflowManifest(postManifest, postManifestId, postMeta)
+
+    
+    const newPostManifestId = await encryptAndStore(mlsGroup, impl, remoteStore, encodeCurrentPostManifest(newPostManifest))
+
+    const newManifest: Manifest2 = {...manifest, currentPostManifest: newPostManifestId}
+
+    await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId)
+
+    return [createMessageResult.newState, newPostManifest, newManifest] as const
+  }
+
+
+  const newPostManifest = await updatePostManifest(postManifest, postMeta, postManifestId, remoteStore)
+
+
+  await store.storeGroupState(createMessageResult.newState)
+
+  return [createMessageResult.newState, newPostManifest, manifest] as const
 }
 
 
-export async function updateManifest(manifest: CurrentPostManifest, postMeta: PostMeta, masterKey: Uint8Array, remoteStore: RemoteStore, manifestId: Uint8Array) {
+export async function updatePostManifest(manifest: CurrentPostManifest, postMeta: PostMeta, postManifestId: StorageIdentifier, remoteStore: RemoteStore) {
   const newManifest = upsertPost(manifest, postMeta)
 
-  await encryptAndStoreWithMasterKey(masterKey, remoteStore, encode(newManifest), manifestId)
+  await encryptAndStoreWithPostSecret(postManifestId[1], remoteStore, encodeCurrentPostManifest(newManifest), base64urlToUint8(postManifestId[0]))
   return newManifest
 }
 
-export async function encryptAndStoreWithMasterKey(masterKey: Uint8Array, remoteStore: RemoteStore, content: Uint8Array, storageId: Uint8Array): Promise<void> {
+
+export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remoteStore: RemoteStore, content: Uint8Array, storageId: Uint8Array): Promise<void> {
   // const { key, accessKey, postSecret } = await deriveKeys(mlsGroup, impl)
-  const { key, accessKey } = await deriveAccessAndEncryptionKeys(masterKey)
+  const { key, accessKey } = await deriveAccessAndEncryptionKeys(postSecret)
 
   const nonce = crypto.getRandomValues(new Uint8Array(12))
 

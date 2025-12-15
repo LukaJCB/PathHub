@@ -1,9 +1,9 @@
-import { ClientState, KeyPackage, PrivateKeyPackage } from "ts-mls"
-import { Comment, CurrentPostManifest, Like, StorageIdentifier } from "./manifest"
+import { CurrentPostManifest, Manifest2, StorageIdentifier } from "./manifest"
 import { StorageClient } from "./http/storageClient"
 import { deriveAccessAndEncryptionKeys } from "./createPost"
-import { decode } from "cbor-x"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { decodeCurrentPostManifest, decodeGroupState, decodeManifest } from "./codec/decode"
+import { ClientState } from "ts-mls"
 
 //TODO ideally there should be a single storage call that stores it locally and also stores it encrypted remote
 //potentially the store could also store things remotely ever so often to save data
@@ -72,11 +72,33 @@ export async function retrieveAndDecryptContent(rs: RemoteStore, id: StorageIden
     return decrypted;
 }
 
-export async function retrieveAndDecryptCurrentManifest(rs: RemoteStore, manifestId: string, masterKey: Uint8Array): Promise<CurrentPostManifest | undefined> {
+export async function retrieveAndDecryptCurrentManifest(rs: RemoteStore, id: StorageIdentifier): Promise<CurrentPostManifest | undefined> {
+    try {
+      const decrypted = await retrieveAndDecryptContent(rs, id);
+
+      return decodeCurrentPostManifest(new Uint8Array(decrypted));
+    } catch (e) {
+      //todo proper error handling
+      return undefined
+    }
+}
+
+export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: string, masterKey: Uint8Array): Promise<ClientState | undefined> {
+    try {
+      const decrypted = await retrieveAndDecryptContent(rs, [storageId, masterKey]);
+
+      return decodeGroupState(new Uint8Array(decrypted));
+    } catch (e) {
+      //todo proper error handling
+      return undefined
+    }
+}
+
+export async function retrieveAndDecryptManifest(rs: RemoteStore, manifestId: string, masterKey: Uint8Array): Promise<Manifest2 | undefined> {
     try {
       const decrypted = await retrieveAndDecryptContent(rs, [manifestId, masterKey]);
 
-      return decode(new Uint8Array(decrypted));
+      return decodeManifest(new Uint8Array(decrypted));
     } catch (e) {
       //todo proper error handling
       return undefined

@@ -1,18 +1,10 @@
-import { decode, encode } from "cbor-x";
-import { Comment, CurrentPostManifest, Like, PostMeta, upsertPost } from "./manifest";
+import { Comment, CurrentPostManifest, Like, PostMeta, StorageIdentifier } from "./manifest";
 import {  CiphersuiteImpl, ClientState } from "ts-mls";
-import { encryptAndStore, updateManifest } from "./createPost";
+import { encryptAndStore, updatePostManifest } from "./createPost";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent } from "./remoteStore";
 import { toBufferSource } from "ts-mls/util/byteArray.js";
-
-export async function updateMeta(
-  manifest: CurrentPostManifest,
-  newMeta: PostMeta,
-  remoteStore: RemoteStore
-) {
-  upsertPost(manifest, newMeta)
-}
-
+import { encodeComment, encodeComments, encodeCommentTbs, encodeLike, encodeLikes, encodeLikeTbs } from "./codec/encode";
+import { decodeComments, decodeLikes } from "./codec/decode";
 
 
 export async function commentPost(
@@ -24,9 +16,8 @@ export async function commentPost(
   author: string,
   remoteStore: RemoteStore,
   manifest: CurrentPostManifest,
-  manifestId: Uint8Array,
-  impl: CiphersuiteImpl,
-  masterKey: Uint8Array
+  manifestId: StorageIdentifier,
+  impl: CiphersuiteImpl
 ): Promise<{ newManifest: [CurrentPostManifest, PostMeta] | undefined; comment: Comment; }> {
   const commentTbs: CommentTbs = {
     postId: meta.main[0],
@@ -37,14 +28,14 @@ export async function commentPost(
 
   const comment = await signComment(signingKey, commentTbs)
 
-  const content = encode(comment)
+  const content = encodeComment(comment)
 
   //send comment to mls group
 
   if (ownPost){
     const comments = await updateCommentList(meta, remoteStore, comment);
     
-    const commentsEncoded = encode(comments)
+    const commentsEncoded = encodeComments(comments)
 
     const storageIdentifier = await encryptAndStore(mlsGroup,impl, remoteStore, commentsEncoded, meta.comments ? base64urlToUint8(meta.comments[0]) : undefined)
 
@@ -55,7 +46,7 @@ export async function commentPost(
       comments: storageIdentifier
     }
 
-    const newManifest = await updateManifest(manifest, newMeta, masterKey, remoteStore, manifestId)
+    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
 
     return { newManifest: [newManifest, newMeta], comment }
   }
@@ -69,7 +60,7 @@ async function updateCommentList(meta: PostMeta, remoteStore: RemoteStore, comme
   if (meta.comments) {
     const decrypted = await retrieveAndDecryptContent(remoteStore, meta.comments);
 
-    const decoded = decode(new Uint8Array(decrypted)) as Comment[];
+    const decoded = decodeComments(new Uint8Array(decrypted))
 
     return [comment, ...decoded];
   } else {
@@ -86,9 +77,8 @@ export async function likePost(
   author: string,
   remoteStore: RemoteStore,
   manifest: CurrentPostManifest,
-  manifestId: Uint8Array,
-  impl: CiphersuiteImpl,
-  masterKey: Uint8Array
+  manifestId: StorageIdentifier,
+  impl: CiphersuiteImpl
 ): Promise<{ like: Like, newManifest: [CurrentPostManifest, PostMeta] | undefined}> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
@@ -98,7 +88,7 @@ export async function likePost(
 
   const like = await signLike(signingKey, likeTbs)
 
-  const content = encode(like)
+  const content = encodeLike(like)
 
   //send like to mls group
 
@@ -106,7 +96,7 @@ export async function likePost(
 
     const likes = await updateLikeList(meta, remoteStore, like);
     
-    const likesEncoded = encode(likes)
+    const likesEncoded = encodeLikes(likes)
 
     const storageIdentifier = await encryptAndStore(mlsGroup, impl, remoteStore, likesEncoded, meta.likes ? base64urlToUint8(meta.likes[0]) : undefined)
 
@@ -117,7 +107,7 @@ export async function likePost(
       likes: storageIdentifier
     }
 
-    const newManifest = await updateManifest(manifest, newMeta, masterKey, remoteStore, manifestId)
+    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
 
     return { newManifest: [newManifest, newMeta], like }
   }
@@ -131,7 +121,7 @@ async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: Li
   if (meta.likes) {
     const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes);
 
-    const decoded = decode(new Uint8Array(decrypted)) as Like[];
+    const decoded = decodeLikes(new Uint8Array(decrypted));
 
     return [like, ...decoded];
   } else {
@@ -141,7 +131,7 @@ async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: Li
 }
 
 async function signComment(signingKey: CryptoKey, tbs: CommentTbs): Promise<Comment> {
-  const encoded = encode(tbs)
+  const encoded = encodeCommentTbs(tbs)
 
   const signature = await crypto.subtle.sign(
       {
@@ -154,7 +144,7 @@ async function signComment(signingKey: CryptoKey, tbs: CommentTbs): Promise<Comm
   return {...tbs, signature: new Uint8Array(signature)}
 }
 
-interface CommentTbs  {
+export interface CommentTbs  {
   postId: string
   author: string
   date: number
@@ -162,7 +152,7 @@ interface CommentTbs  {
 }
 
 async function signLike(signingKey: CryptoKey, tbs: LikeTbs): Promise<Like> {
-  const encoded = encode(tbs)
+  const encoded = encodeLikeTbs(tbs)
 
   const signature = await crypto.subtle.sign(
       {
@@ -176,7 +166,7 @@ async function signLike(signingKey: CryptoKey, tbs: LikeTbs): Promise<Like> {
 }
 
 
-interface LikeTbs  {
+export interface LikeTbs  {
   postId: string
   author: string
   date: number

@@ -11,6 +11,7 @@ import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { base64ToBytes } from "ts-mls/util/byteArray.js";
 import { decode } from "cbor-x";
 import { commentPost, likePost } from "pathhub-client/src/postInteraction.js";
+import { decodeRoute } from "pathhub-client/src/codec/decode.js";
 
 
 type Props = {
@@ -39,14 +40,12 @@ export const PostView = () => {
             const l = p?.likes
             const c = p?.comments
 
-            console.log("Fetching content")
             const [fetchedPost, comments] = await Promise.all([
                 retrieveAndDecryptContent(rs, p!.main),
                 c ? retrieveAndDecryptContent(rs, c) : Promise.resolve(undefined)
             ])
 
-            console.log(p)
-            setGpxData(decode(new Uint8Array(fetchedPost)))
+            setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
             if (comments) setComments(decode(new Uint8Array(comments)))
             
             setLikes(p!.totalLikes)
@@ -65,9 +64,8 @@ export const PostView = () => {
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
              user.ownGroupState, true, user.name, rs, 
              user.currentManifest,
-             base64urlToUint8(user.currentManifestId),
-             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
-            user.masterKey)
+             user.manifest.currentPostManifest, //todo need to insert the post secret here too!!
+             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
         setComments([...comments, comment])
         setCommentText("")
@@ -85,9 +83,8 @@ export const PostView = () => {
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
              user.ownGroupState, true, user.name, rs, 
              user.currentManifest,
-             base64urlToUint8(user.currentManifestId),
-             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
-            user.masterKey)
+             user.manifest.currentPostManifest,
+             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
 
         setLikes(likes + 1)

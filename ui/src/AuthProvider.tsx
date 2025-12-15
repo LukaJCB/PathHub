@@ -1,10 +1,10 @@
 import { useState, ReactNode, useEffect } from "react";
 import { AuthContext, User } from "./authContext.js";
-import { AuthenticationClient, createAuthClient } from "pathhub-client/src/authClient.js";
+import { AuthenticationClient, createAuthClient, parseToken } from "pathhub-client/src/authClient.js";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { CurrentPostManifest } from "pathhub-client/src/manifest.js";
 import {deriveGroupIdFromUserId} from "pathhub-client/src/mlsInteractions.js"
-import {init} from "pathhub-client/src/init.js"
+import {initGroupState, initManifest} from "pathhub-client/src/init.js"
 import { bytesToBase64 } from "ts-mls";
 import { base64ToBytes } from "ts-mls/util/byteArray.js";
 import { base64urlToUint8, createRemoteStore, retrieveAndDecryptCurrentManifest, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
@@ -26,13 +26,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!token || !manifestId || !mkey) return;
 
         const masterKey = base64urlToUint8(mkey)
+        const {expires} = parseToken(token)
 
-        if (getExpFromToken(token) * 1000 <= Date.now()) return
+        if (expires * 1000 <= Date.now()) return
 
-        const { userId, username, manifest, groupState } = await setupUserState(token, manifestId, masterKey);
+        const { userId, username, manifest, postManifest, groupState } = await setupUserState(token, manifestId, masterKey);
         
 
-        setUser({id: userId, name: username, currentManifest: manifest, ownGroupState: groupState, currentManifestId: manifestId, masterKey, token })
+        setUser({id: userId, name: username, currentManifest:postManifest, manifest, manifestId, ownGroupState: groupState, masterKey, token })
     }
     setupState()
   }, [])
@@ -44,9 +45,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("manifest_id", res.manifest)
     localStorage.setItem("master_key", uint8ToBase64Url(res.masterKey))
 
-    const { userId, manifest, groupState } = await setupUserState(res.token, res.manifest, res.masterKey)
+    const { userId, manifest, postManifest, groupState } = await setupUserState(res.token, res.manifest, res.masterKey)
 
-    setUser({id: userId, name: username, currentManifest: manifest, ownGroupState: groupState, token: res.token, currentManifestId: res.manifest, masterKey: res.masterKey })
+    setUser({id: userId, name: username, currentManifest: postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey })
     
   }
 
@@ -73,67 +74,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 
 async function setupUserState(token: string, manifestId: string, masterKey: Uint8Array) {
-    const userId = getUserIdFromToken(token);
+  const {userId, username} = parseToken(token)
+
 
     const ls = await makeStore(userId);
     const rs = await createRemoteStore(createContentClient("/storage", token))
+
+    const [manifest, postManifest, groupState] = await initManifest(userId, manifestId, masterKey, rs)
     
-    const manifest = (await retrieveAndDecryptCurrentManifest(rs, manifestId, masterKey)) ?? {
-        manifestIndex: 0,
-        posts: [], oldManifests: [], totals: {
-            totalPosts: 0,
-            totalDerivedMetrics: {
-                distance: 0,
-                elevation: 0,
-                duration: 0
-            }
-        }
-    };
+    // const manifest = (await retrieveAndDecryptCurrentManifest(rs, manifestId, masterKey)) ?? {
+    //     manifestIndex: 0,
+    //     posts: [], oldManifests: [], totals: {
+    //         totalPosts: 0,
+    //         totalDerivedMetrics: {
+    //             distance: 0,
+    //             elevation: 0,
+    //             duration: 0
+    //         }
+    //     }
+    // };
 
-    console.log(manifest)
-    console.log(manifestId)
 
-    const groupId = await deriveGroupIdFromUserId(userId);
-
-    // todo get groupstate from remote store
-    const groupState = (await ls.getGroupState(bytesToBase64(groupId))) ?? await init(userId);
-
-    const username = getUsernameFromToken(token);
-    return { userId, username, manifest, groupState };
+    return { userId, username, manifest, postManifest, groupState };
 }
 
-function parseToken(token: string): { userId: string, expires: number, username: string } {
-  const decoded = base64ToBytes(token.split(".").at(1)!)
-    const parsed = JSON.parse(new TextDecoder().decode(decoded))
-
-
-    return {
-      userId: parsed.sub,
-      expires: parsed.expires,
-      username: parsed["ph-user"]
-    }
-}
-
-function getUserIdFromToken(token: string): string {
-    const decoded = base64ToBytes(token.split(".").at(1)!)
-    const parsed = JSON.parse(new TextDecoder().decode(decoded))
-
-
-    return parsed.sub
-}
-
-function getExpFromToken(token: string): number {
-    const decoded = base64ToBytes(token.split(".").at(1)!)
-    const parsed = JSON.parse(new TextDecoder().decode(decoded))
-
-
-    return parsed.exp
-}
-
-function getUsernameFromToken(token: string): string {
-    const decoded = base64ToBytes(token.split(".").at(1)!)
-    const parsed = JSON.parse(new TextDecoder().decode(decoded))
-
-
-    return parsed["ph-user"]
-}

@@ -1,7 +1,7 @@
 import * as opaque from "@serenity-kit/opaque"
 import { createAuthenticationClient } from "./http/authenticationClient.js"
 import { scryptAsync } from "@noble/hashes/scrypt"
-import { toBufferSource } from "ts-mls/util/byteArray.js";
+import { base64ToBytes, toBufferSource } from "ts-mls/util/byteArray.js";
 
 export interface AuthenticationClient {
   register(input: { username: string; password: string }): Promise<{ userId: string }>
@@ -121,62 +121,74 @@ export function createAuthClient(baseUrl: string): AuthenticationClient {
   const client = createAuthenticationClient(baseUrl)
 
   return {
-    async register({ username, password }) {
-      const { masterKey, recoveryKey } = await generateMasterKeyRecoveryKeyPair()
+  async register({ username, password }) {
+    const { masterKey, recoveryKey } = await generateMasterKeyRecoveryKeyPair();
 
-      const signKeyPair = await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"])
+    const signKeyPair = await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"]);
 
-      const exportedSignaturePublicKey = await crypto.subtle.exportKey("raw", signKeyPair.publicKey)
+    const exportedSignaturePublicKey = await crypto.subtle.exportKey("raw", signKeyPair.publicKey);
 
-      const encryptedKeys = await encryptKeys(recoveryKey, masterKey)
+    const encryptedKeys = await encryptKeys(recoveryKey, masterKey);
 
-      const passwordSetupResult = await encryptMasterKeyPassword(masterKey, password)
+    const passwordSetupResult = await encryptMasterKeyPassword(masterKey, password);
 
-      const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
+    const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password });
 
-      const startRegistrationResult = await client.startRegistration({ username, registrationRequest })
+    const startRegistrationResult = await client.startRegistration({ username, registrationRequest });
 
-      const { registrationRecord } = opaque.client.finishRegistration({
-        registrationResponse: startRegistrationResult.response,
-        clientRegistrationState,
-        password,
-      })
+    const { registrationRecord } = opaque.client.finishRegistration({
+      registrationResponse: startRegistrationResult.response,
+      clientRegistrationState,
+      password,
+    });
 
-      const result = await client.finishRegistration({
-        ...encryptedKeys,
-        ...passwordSetupResult,
-        signingPublicKey: new Uint8Array(exportedSignaturePublicKey),
-        username,
-        registrationRecord,
-      })
+    const result = await client.finishRegistration({
+      ...encryptedKeys,
+      ...passwordSetupResult,
+      signingPublicKey: new Uint8Array(exportedSignaturePublicKey),
+      username,
+      registrationRecord,
+    });
 
-      const privateKeyBundle: PrivateKeyBundle = {
-        signingKey: signKeyPair.privateKey,
-        masterKey,
-        recoveryKey,
-      }
+    const privateKeyBundle: PrivateKeyBundle = {
+      signingKey: signKeyPair.privateKey,
+      masterKey,
+      recoveryKey,
+    };
 
-      return { status: "ok", userId: result.userId, privateKeyBundle }
-    },
+    return { status: "ok", userId: result.userId, privateKeyBundle };
+  },
 
-    async login({ username, password }) {
+  async login({ username, password }) {
 
-      const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password })
+    const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password });
 
-      const startLoginResult = await client.startLogin({ username, startLoginRequest })
+    const startLoginResult = await client.startLogin({ username, startLoginRequest });
 
-      console.log(startLoginResult)
 
-      const { finishLoginRequest } = opaque.client.finishLogin({
-        loginResponse: startLoginResult.response,
-        clientLoginState,
-        password,
-      })!
+    const { finishLoginRequest } = opaque.client.finishLogin({
+      loginResponse: startLoginResult.response,
+      clientLoginState,
+      password,
+    })!;
 
-      const resp = await client.finishLogin({ username, finishLoginRequest })
+    const resp = await client.finishLogin({ username, finishLoginRequest });
 
-      const masterKey = await decryptMasterKeyPassword(resp.encryptedMasterKey, password, resp.salt, resp.nonce)
-      return {token: resp.token, manifest: resp.manifest, masterKey}
-    },
+    const masterKey = await decryptMasterKeyPassword(resp.encryptedMasterKey, password, resp.salt, resp.nonce);
+    return { token: resp.token, manifest: resp.manifest, masterKey };
   }
+}
+}
+
+
+export function parseToken(token: string): { userId: string, expires: number, username: string } {
+  const decoded = base64ToBytes(token.split(".").at(1)!)
+    const parsed = JSON.parse(new TextDecoder().decode(decoded))
+
+
+    return {
+      userId: parsed.sub,
+      expires: parsed.expires,
+      username: parsed["ph-user"]
+    }
 }

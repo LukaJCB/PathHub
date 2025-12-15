@@ -3,11 +3,12 @@ import LeafletRouteMap from './LeafleftMapView';
 import { useAuthRequired } from './useAuth';
 import { createPost} from 'pathhub-client/src/createPost.js'
 import { makeStore } from 'pathhub-client/src/indexedDbStore.js';
+import { encodeRoute } from 'pathhub-client/src/codec/encode.js';
 import { MessageClient } from 'pathhub-client/src/http/messageClient.js';
 import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
 import { useNavigate } from 'react-router';
 import { base64urlToUint8, createRemoteStore } from 'pathhub-client/src/remoteStore.js';
-import { encode } from "cbor-x";
+
 import { createContentClient, StorageClient } from 'pathhub-client/src/http/storageClient.js';
 
 interface RouteData {
@@ -40,7 +41,6 @@ const FileUpload: React.FC = () => {
         const text = reader.result as string;
         const { trackpoints, totalDistance, totalElevationGain, coords, totalDuration } = parseTrackData(text, minimumDistanceThreshold, minimumGainThreshold)!;
 
-        console.log(`Parsed ${trackpoints.length} track points from GPX: ${totalDistance}, ${totalElevationGain}`);
         
         setGpxData({ coords: coords, totalDuration, totalDistance, totalElevation: totalElevationGain});
         setImagePreview(null); // clear preview if switching types
@@ -91,17 +91,21 @@ const FileUpload: React.FC = () => {
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    const content = encode(gpxData!.coords)
+    const content = encodeRoute(gpxData!.coords)
     const ls = await makeStore(user.id)
     const rs = await createRemoteStore(createContentClient("/storage", user.token))
+
+    console.log(user)
 
     const [newGroup, newManifest] = await createPost(content, 
       {elevation: gpxData!.totalElevation, duration: gpxData!.totalDuration, distance: gpxData!.totalDistance},
       title,
       user.id,
       user.currentManifest,
-      base64urlToUint8(user.currentManifestId),
+      user.manifest.currentPostManifest,
       user.ownGroupState,
+      user.manifest,
+      base64urlToUint8(user.manifestId),
       ls,
       rs,
       null as any as MessageClient,

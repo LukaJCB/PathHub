@@ -1,4 +1,4 @@
-import { CurrentPostManifest } from "pathhub-client/src/manifest.js";
+import { CurrentPostManifest, Manifest2 } from "pathhub-client/src/manifest.js";
 import { createContext } from "react";
 import {ClientState} from "ts-mls"
 
@@ -6,8 +6,9 @@ export interface User {
   id: string;
   name: string;
   token: string
+  manifest: Manifest2
+  manifestId: string
   currentManifest: CurrentPostManifest
-  currentManifestId: string
   ownGroupState: ClientState
   masterKey: Uint8Array
 }

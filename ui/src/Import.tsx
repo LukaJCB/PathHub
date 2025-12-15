@@ -10,6 +10,7 @@ import { createPost } from "pathhub-client/src/createPost.js";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { MessageClient } from "pathhub-client/src/http/messageClient.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
+import { encodeRoute } from "pathhub-client/src/codec/encode.js";
 
 export interface ActivityRecord {
   "Activity Count": string;
@@ -170,14 +171,16 @@ export function ZipExtractor() {
             continue;
         }
 
-        const content = encode(parsed.coords)
+        const content = encodeRoute(parsed.coords)
         const [newGroup, newManifest] = await createPost(content, 
               {elevation: parsed.totalElevationGain, duration: parsed.totalDuration, distance: parsed.totalDistance},
               record["Activity Name"],
               user.id,
               currentManifest,
-              base64urlToUint8(user.currentManifestId),
+              user.manifest.currentPostManifest,
               user.ownGroupState,
+              user.manifest,
+              base64urlToUint8(user.manifestId),
               ls,
               rs,
               null as any as MessageClient,

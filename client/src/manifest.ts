@@ -16,11 +16,18 @@ export interface Post {
   comments: StorageIdentifier[]
 }
 
+//todo make manifest use storageidentifier to allower easier updating
 export interface Manifest {
   id: string
   currentPostManifest: CurrentPostManifest
   groupStateManifest: GroupStateManifest
   followeeManifests: Map<string, CurrentPostManifest>
+}
+
+export interface Manifest2 {
+  currentPostManifest: StorageIdentifier
+  groupStateManifest: Uint8Array
+  followeeManifests: Map<string, StorageIdentifier>
 }
 
 export interface GroupStateManifest {
@@ -77,9 +84,9 @@ export interface CurrentPostManifest {
 }
 
 
-export function overflowManifest(manifest: CurrentPostManifest, storageId: StorageIdentifier): CurrentPostManifest {
+export function overflowManifest(manifest: CurrentPostManifest, storageId: StorageIdentifier, postMeta: PostMeta): CurrentPostManifest {
   return {
-    posts: [],
+    posts: [postMeta],
     totals: manifest.totals,
     manifestIndex: manifest.manifestIndex + 1,
     oldManifests: [...manifest.oldManifests, {usedUntil: Date.now(), postManifest: storageId}]

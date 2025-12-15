@@ -3,6 +3,7 @@ import { bytesToBase64, ClientState, KeyPackage, PrivateKeyPackage } from "ts-ml
 import { CurrentPostManifest } from "./manifest"
 import { LocalStore } from "./localStore"
 import { defaultClientConfig } from "ts-mls/clientConfig.js"
+import { fromJsonString, toJsonString } from "ts-mls/codec/json.js"
 
 interface Schema extends DBSchema {
   followRequests: {
@@ -22,7 +23,7 @@ interface Schema extends DBSchema {
   }
   groupStates: {
     key: string
-    value: ClientState
+    value: string
   },
   content: {
     key: string,
@@ -56,15 +57,12 @@ export async function makeStore(userid: string): Promise<LocalStore> {
       await db.put("manifests", { manifest, user: userId }, manifestId)
     },
     async storeGroupState(state) {
-      const config = state.clientConfig;
-      (state as any).clientConfig = {}
-      await db.put("groupStates", state, bytesToBase64(state.groupContext.groupId))
-      state.clientConfig = config //todo very hacky
+      await db.put("groupStates", toJsonString(state), bytesToBase64(state.groupContext.groupId))
     },
     async getGroupState(groupId) {
       const state =  await db.get("groupStates", groupId)
-      if (state) { state.clientConfig = defaultClientConfig } //todo obvs
-      return state
+      
+      if (state) { return fromJsonString(state, defaultClientConfig) } //todo obvs
     },
     async getContent(storageId) {
       return await db.get("content", storageId)
