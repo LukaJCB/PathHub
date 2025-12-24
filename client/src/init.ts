@@ -13,10 +13,10 @@ import {
 } from "ts-mls"
 import { clientConfig } from "./mlsConfig"
 import { deriveGroupIdFromUserId } from "./mlsInteractions";
-import { CurrentPostManifest, Manifest2 } from "./manifest";
+import { CurrentPostManifest, Manifest } from "./manifest";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptCurrentManifest, retrieveAndDecryptGroupState, retrieveAndDecryptManifest, uint8ToBase64Url } from "./remoteStore";
 import { encryptAndStore, encryptAndStoreWithPostSecret } from "./createPost";
-import { encodeCurrentPostManifest, encodeGroupState, encodeManifest } from "./codec/encode";
+import { encodeCurrentPostManifest, encodeFollowRequests, encodeGroupState, encodeManifest } from "./codec/encode";
 
 
 export async function initGroupState(userId: string) {
@@ -47,7 +47,7 @@ export async function initGroupState(userId: string) {
 }
 
 
-export async function initManifest(userId: string, manifestId: string, masterKey: Uint8Array, rs: RemoteStore): Promise<[Manifest2, CurrentPostManifest, ClientState]> {
+export async function initManifest(userId: string, manifestId: string, masterKey: Uint8Array, rs: RemoteStore): Promise<[Manifest, CurrentPostManifest, ClientState]> {
 
   const y = await retrieveAndDecryptManifest(rs, manifestId, masterKey)
   if (y) {
@@ -74,6 +74,7 @@ export async function initManifest(userId: string, manifestId: string, masterKey
 
 
     const gmStorageId = crypto.getRandomValues(new Uint8Array(32))
+    const frStorageId = crypto.getRandomValues(new Uint8Array(32))
 
     const impl = await getCiphersuiteImpl(
       getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"),
@@ -83,13 +84,15 @@ export async function initManifest(userId: string, manifestId: string, masterKey
 
     const [pmStorage] = await Promise.all([
       encryptAndStore(groupState, impl, rs, encodeCurrentPostManifest(pm)), 
-      encryptAndStoreWithPostSecret(masterKey, rs, encodeGroupState(groupState), gmStorageId)
+      encryptAndStoreWithPostSecret(masterKey, rs, encodeGroupState(groupState), gmStorageId),
+      encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowRequests([]), frStorageId)
     ])
   
-    const manifest: Manifest2 = {
+    const manifest: Manifest = {
       currentPostManifest: pmStorage,
       groupStateManifest: gmStorageId,
-      followeeManifests: new Map()
+      followeeManifests: new Map(),
+      followRequests: frStorageId
     }
 
     await encryptAndStoreWithPostSecret(masterKey, rs, encodeManifest(manifest), base64urlToUint8(manifestId))

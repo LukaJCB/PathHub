@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, DragEvent, useEffect } from 'react';
+import React, { useState, ChangeEvent, DragEvent, useEffect, useRef } from 'react';
 import LeafletRouteMap from './LeafleftMapView';
 import { useAuthRequired } from './useAuth';
 import { createPost} from 'pathhub-client/src/createPost.js'
@@ -8,8 +8,11 @@ import { MessageClient } from 'pathhub-client/src/http/messageClient.js';
 import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
 import { useNavigate } from 'react-router';
 import { base64urlToUint8, createRemoteStore } from 'pathhub-client/src/remoteStore.js';
-
+import {decodeBlobWithMime, encodeBlobWithMime} from "pathhub-client/src/imageEncoding.js"
 import { createContentClient, StorageClient } from 'pathhub-client/src/http/storageClient.js';
+import { domToBlob } from "modern-screenshot"
+import MapLibreRouteMap from './MapLibreView';
+import {renderRouteThumbnail} from "./ThumbnailRenderer"
 
 interface RouteData {
   coords: [number, number, number][]
@@ -26,12 +29,30 @@ const FileUpload: React.FC = () => {
 
   const {user, updateUser} = useAuthRequired()
   const [gpxData, setGpxData] = useState<RouteData | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageData, setImageData] = useState<Uint8Array[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [title, setTitle] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null)
 
-  const processFile = (file: File) => {
+  useEffect(() => {
+    imageUrls.forEach(URL.revokeObjectURL);
+
+    const urls = imageData.map((i) => {
+      const { mimeType, bytes } = decodeBlobWithMime(i);
+      const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
+      return URL.createObjectURL(blob);
+    });
+
+    setImageUrls(urls);
+
+    return () => {
+      urls.forEach(URL.revokeObjectURL);
+    };
+  }, [imageData]);
+
+  const processGpxFile = (file: File) => {
     setSelectedFile(file);
     const fileType = file.type;
     const reader = new FileReader();
@@ -41,38 +62,61 @@ const FileUpload: React.FC = () => {
         const text = reader.result as string;
         const { trackpoints, totalDistance, totalElevationGain, coords, totalDuration } = parseTrackData(text, minimumDistanceThreshold, minimumGainThreshold)!;
 
-        
         setGpxData({ coords: coords, totalDuration, totalDistance, totalElevation: totalElevationGain});
-        setImagePreview(null); // clear preview if switching types
 
       };
       reader.readAsText(file);
-    } else if (fileType.startsWith('image/')) {
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-        setGpxData(null); // clear GPX if switching types
-      };
-      reader.readAsDataURL(file);
     } else {
-      alert('Unsupported file type. Please upload a .gpx or an image.');
+      alert('Unsupported file type. Please upload a .gpx.');
     }
   };
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const processMediaFile = async (file: File) => {
+    setSelectedFile(file);
+    const fileType = file.type;
+
+    if (fileType.startsWith('image/')) {
+      const encoded = encodeBlobWithMime(await file.arrayBuffer(), fileType)
+      setImageData(prev => [...prev, encoded]);
+    } else {
+      alert('Unsupported file type. Please upload an image.');
+    }
+  };
+
+
+  const handleInputChangeGpx = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processFile(file);
+      processGpxFile(file);
     }
   };
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDropGpx = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      processFile(file);
+      processGpxFile(file);
+    }
+  };
+
+  const handleInputChangeMedia = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processMediaFile(file);
+    }
+  };
+
+  const handleDropMedia = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processMediaFile(file);
     }
   };
 
@@ -95,11 +139,16 @@ const FileUpload: React.FC = () => {
     const ls = await makeStore(user.id)
     const rs = await createRemoteStore(createContentClient("/storage", user.token))
 
-    console.log(user)
+    const blob = await renderRouteThumbnail(gpxData!.coords)
 
-    const [newGroup, newManifest] = await createPost(content, 
+    const thumb = encodeBlobWithMime(await blob.arrayBuffer(), blob.type)
+
+    const [newGroup, newPostManifest, newManifest] = await createPost(content, 
       {elevation: gpxData!.totalElevation, duration: gpxData!.totalDuration, distance: gpxData!.totalDistance},
       title,
+      thumb,
+      imageData,
+      Date.now(),
       user.id,
       user.currentManifest,
       user.manifest.currentPostManifest,
@@ -113,14 +162,14 @@ const FileUpload: React.FC = () => {
       user.masterKey
     )
 
-    updateUser({currentManifest: newManifest, ownGroupState: newGroup})
+    updateUser({currentManifest: newPostManifest, manifest: newManifest, ownGroupState: newGroup})
 
     nav("/")
   };
 
   return (
     <div>
-      <h2>Upload a .gpx or image file</h2>
+      <h2>Upload a .gpx</h2>
       <label>Title: </label>
         <input
           type="text" 
@@ -129,7 +178,7 @@ const FileUpload: React.FC = () => {
         />
       
       <div
-        onDrop={handleDrop}
+        onDrop={handleDropGpx}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         style={{
@@ -141,33 +190,66 @@ const FileUpload: React.FC = () => {
           transition: 'background-color 0.2s ease',
         }}
       >
-        {isDragging ? 'Drop the file here...' : 'Drag & drop a file here or click to select'}
+
+        {isDragging ? 'Drop the .gpx file here...' : 'Drag & drop a .gpx file here or click to select'}
         <input
           type="file"
-          accept=".gpx,image/png,image/jpeg"
-          onChange={handleInputChange}
+          accept=".gpx"
+          onChange={handleInputChangeGpx}
           style={{ display: 'none' }}
-          id="fileInput"
+          id="fileInputGpx"
         />
-        <label htmlFor="fileInput" style={{ display: 'block', marginTop: '1rem', cursor: 'pointer', color: '#007bff' }}>
+        <label htmlFor="fileInputGpx" style={{ display: 'block', marginTop: '1rem', cursor: 'pointer', color: '#007bff' }}>
           Browse Files
         </label>
       </div>
-
+      <div 
+        onDrop={handleDropMedia}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        style={{
+          border: '2px dashed #ccc',
+          padding: '2rem',
+          marginBottom: '1rem',
+          textAlign: 'center',
+          backgroundColor: isDragging ? '#f0f8ff' : '#fafafa',
+          transition: 'background-color 0.2s ease',
+        }}>
+        {isDragging ? 'Drop media files here...' : 'Drag & drop media files here or click to select'}
+        <input
+          type="file"
+          accept="image/png,image/jpeg"
+          onChange={handleInputChangeMedia}
+          style={{ display: 'none' }}
+          id="fileInputMedia"
+        />
+        <label htmlFor="fileInputMedia" style={{ display: 'block', marginTop: '1rem', cursor: 'pointer', color: '#007bff' }}>
+          Browse Files
+        </label>
+      </div>
       {gpxData && (
         <div>
           <h3>Activity Preview</h3>
-            <LeafletRouteMap route={gpxData.coords} showMarkers/>
+            <div ref={ref}>
+              <MapLibreRouteMap route={gpxData.coords} showMarkers/>
+            </div>
             <div>Duration: {gpxData.totalDuration / 3600000} hours</div>
             <div>Elevation: {gpxData.totalElevation} meters</div>
             <div>Distance: {gpxData.totalDistance / 1000} kilometers</div>
         </div>
       )}
 
-      {imagePreview && (
+      {imageUrls && (
         <div>
           <h3>Image Preview:</h3>
-          <img src={imagePreview} alt="Preview" style={{ maxWidth: '300px' }} />
+          <ul>
+            {imageUrls.map((url, idx) => (
+              <li key={idx}>
+                <img src={url} style={{ maxWidth: '300px' }} />
+              </li>
+            ))}
+          </ul>
+          
         </div>
       )}
 
@@ -176,7 +258,7 @@ const FileUpload: React.FC = () => {
       </button>
     </div>
   );
-};
+}
 
 export default FileUpload;
 

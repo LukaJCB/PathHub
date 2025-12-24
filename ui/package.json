@@ -23,6 +23,7 @@
     "cbor-x": "1.6.0",
     "leaflet": "^1.9.4",
     "maplibre-gl": "5.9.0",
+    "modern-screenshot": "^4.6.7",
     "papaparse": "^5.5.3",
     "pathhub-client": "link:../../../Library/pnpm/global/5/node_modules/pathhub-client",
     "react": "19.2.0",

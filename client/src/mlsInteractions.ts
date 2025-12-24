@@ -15,7 +15,7 @@ export function recipientsFromMlsState(exclude: string[], clientState: ClientSta
 }
 
 export async function deriveGroupIdFromUserId(userId: string): Promise<Uint8Array> {
-  // todo decide what to do here
+  // todo decide what to do here with kdf
   return new Uint8Array(await crypto.subtle.digest({ name: "SHA-256" }, new TextEncoder().encode(userId)));
 }
 

@@ -13,7 +13,7 @@ export async function commentPost(
   signingKey: CryptoKey,
   mlsGroup: ClientState,
   ownPost: boolean,
-  author: string,
+  authorId: string,
   remoteStore: RemoteStore,
   manifest: CurrentPostManifest,
   manifestId: StorageIdentifier,
@@ -21,7 +21,7 @@ export async function commentPost(
 ): Promise<{ newManifest: [CurrentPostManifest, PostMeta] | undefined; comment: Comment; }> {
   const commentTbs: CommentTbs = {
     postId: meta.main[0],
-    author,
+    author: authorId,
     date: Date.now(),
     text
   }
@@ -74,7 +74,7 @@ export async function likePost(
   signingKey: CryptoKey,
   mlsGroup: ClientState,
   ownPost: boolean,
-  author: string,
+  authorId: string,
   remoteStore: RemoteStore,
   manifest: CurrentPostManifest,
   manifestId: StorageIdentifier,
@@ -82,7 +82,7 @@ export async function likePost(
 ): Promise<{ like: Like, newManifest: [CurrentPostManifest, PostMeta] | undefined}> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
-    author,
+    author: authorId,
     date: Date.now(),
   }
 
@@ -102,7 +102,7 @@ export async function likePost(
 
     const newMeta: PostMeta = {
       ...meta,
-      totalLikes: meta.totalLikes + 1,
+      totalLikes: likes.length,
       sampleLikes: [...meta.sampleLikes.slice(1, meta.sampleLikes.length), like],
       likes: storageIdentifier
     }
@@ -113,6 +113,43 @@ export async function likePost(
   }
 
   return {like, newManifest: undefined}
+
+}
+
+export async function unlikePost(
+  meta: PostMeta,
+  mlsGroup: ClientState,
+  ownPost: boolean,
+  authorId: string,
+  remoteStore: RemoteStore,
+  manifest: CurrentPostManifest,
+  manifestId: StorageIdentifier,
+  impl: CiphersuiteImpl
+): Promise<{ newManifest: [CurrentPostManifest, PostMeta] | undefined}> {
+
+  //send like to mls group
+
+  if (ownPost) {
+
+    const likes = await removeFromLikeList(meta, remoteStore, authorId);
+    
+    const likesEncoded = encodeLikes(likes)
+
+    const storageIdentifier = await encryptAndStore(mlsGroup, impl, remoteStore, likesEncoded, meta.likes ? base64urlToUint8(meta.likes[0]) : undefined)
+
+    const newMeta: PostMeta = {
+      ...meta,
+      totalLikes: likes.length,
+      sampleLikes: meta.sampleLikes.filter(l => l.author !== authorId),
+      likes: storageIdentifier
+    }
+
+    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
+
+    return { newManifest: [newManifest, newMeta] }
+  }
+
+  return {newManifest: undefined}
 
 }
 
@@ -127,6 +164,18 @@ async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: Li
   } else {
     return [like];
 
+  }
+}
+
+async function removeFromLikeList(meta: PostMeta, remoteStore: RemoteStore, authorId: string): Promise<Like[]> {
+  if (meta.likes) {
+    const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes);
+
+    const decoded = decodeLikes(new Uint8Array(decrypted));
+
+    return decoded.filter(l => l.author !== authorId)
+  } else {
+    return Promise.reject(new Error("Could not retrieve likes from remote store"))
   }
 }
 

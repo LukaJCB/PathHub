@@ -81,19 +81,6 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
     const rs = await createRemoteStore(createContentClient("/storage", token))
 
     const [manifest, postManifest, groupState] = await initManifest(userId, manifestId, masterKey, rs)
-    
-    // const manifest = (await retrieveAndDecryptCurrentManifest(rs, manifestId, masterKey)) ?? {
-    //     manifestIndex: 0,
-    //     posts: [], oldManifests: [], totals: {
-    //         totalPosts: 0,
-    //         totalDerivedMetrics: {
-    //             distance: 0,
-    //             elevation: 0,
-    //             duration: 0
-    //         }
-    //     }
-    // };
-
 
     return { userId, username, manifest, postManifest, groupState };
 }

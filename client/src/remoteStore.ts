@@ -1,4 +1,4 @@
-import { CurrentPostManifest, Manifest2, StorageIdentifier } from "./manifest"
+import { CurrentPostManifest, Manifest, StorageIdentifier } from "./manifest"
 import { StorageClient } from "./http/storageClient"
 import { deriveAccessAndEncryptionKeys } from "./createPost"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
@@ -94,7 +94,7 @@ export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: s
     }
 }
 
-export async function retrieveAndDecryptManifest(rs: RemoteStore, manifestId: string, masterKey: Uint8Array): Promise<Manifest2 | undefined> {
+export async function retrieveAndDecryptManifest(rs: RemoteStore, manifestId: string, masterKey: Uint8Array): Promise<Manifest | undefined> {
     try {
       const decrypted = await retrieveAndDecryptContent(rs, [manifestId, masterKey]);
 

@@ -15,7 +15,7 @@ function App() {
     <>
       <h2>Pathhub</h2>
       <ZipExtractor />
-      <ProfileView userId={user.id} username={user.name} manifest={user.currentManifest} />
+      <Link to={`/user/${user.id}/0`} > {user.name} </Link><div/>
       <Link to="/upload">Click here to Upload an Activity!</Link>
     </>
   );

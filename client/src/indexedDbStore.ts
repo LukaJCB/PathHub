@@ -1,9 +1,10 @@
 import { openDB, DBSchema } from "idb"
-import { bytesToBase64, ClientState, KeyPackage, PrivateKeyPackage } from "ts-mls"
+import { bytesToBase64, KeyPackage, PrivateKeyPackage } from "ts-mls"
 import { CurrentPostManifest } from "./manifest"
 import { LocalStore } from "./localStore"
 import { defaultClientConfig } from "ts-mls/clientConfig.js"
 import { fromJsonString, toJsonString } from "ts-mls/codec/json.js"
+import { clientConfig } from "./mlsConfig"
 
 interface Schema extends DBSchema {
   followRequests: {
@@ -34,6 +35,8 @@ interface Schema extends DBSchema {
   }
 }
 
+// todo store group states on the server as well as manifests, followRequests and content
+// post manifests can be stored locally
 export async function makeStore(userid: string): Promise<LocalStore> {
   console.log(userid)
   const db = await openDB<Schema>(`ph-${userid}`, 1, {
@@ -62,7 +65,7 @@ export async function makeStore(userid: string): Promise<LocalStore> {
     async getGroupState(groupId) {
       const state =  await db.get("groupStates", groupId)
       
-      if (state) { return fromJsonString(state, defaultClientConfig) } //todo obvs
+      if (state) { return fromJsonString(state, clientConfig) }
     },
     async getContent(storageId) {
       return await db.get("content", storageId)

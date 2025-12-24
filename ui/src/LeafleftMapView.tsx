@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Polyline, Marker } from 'react-leaflet';
 import { LatLngExpression, Icon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import React from 'react';
+import React, { CSSProperties } from 'react';
 
 // Fix missing default marker icons in Leaflet (important for Webpack/Vite)
 import L from 'leaflet';
@@ -16,30 +16,30 @@ L.Icon.Default.mergeOptions({
 type Props = {
   route: [number, number, number][];
   showMarkers?: boolean;
+  width?: string;  
+  height?: string; 
 };
 
-const LeafletRouteMap: React.FC<Props> = ({ route, showMarkers = true }) => {
+const LeafletRouteMap: React.FC<Props> = ({ route, showMarkers = true, width = "100%", height = "500px" }) => {
   if (!route || route.length === 0) return null;
 
   const center: LatLngExpression = route[Math.floor(route.length / 2)];
+
 
   return (
     <MapContainer
       center={center}
       zoom={13}
       scrollWheelZoom={true}
-      style={{ height: '500px', width: '100%' }}
+      style={{ width, height }}
     >
-      {/* OpenStreetMap raster tiles (full detail) */}
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* Route line */}
       <Polyline positions={route} color="red" />
 
-      {/* Optional start/end markers */}
       {showMarkers && (
         <>
           <Marker position={route[0]} />

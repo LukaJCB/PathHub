@@ -1,9 +1,9 @@
 import { decode } from "cbor-x";
-import { Comment, CurrentPostManifest, Like, Manifest2 } from "../manifest";
+import { Comment, CurrentPostManifest, Like, Manifest } from "../manifest";
 import { CommentTbs, LikeTbs } from "../postInteraction";
 import { ClientState } from "ts-mls";
 import { fromJsonString } from "ts-mls/codec/json.js";
-import { defaultClientConfig } from "ts-mls/clientConfig.js";
+import { clientConfig } from "../mlsConfig";
 
 export function decodeCurrentPostManifest(pm: Uint8Array): CurrentPostManifest {
     return decode(pm)
@@ -42,10 +42,10 @@ export function decodeRoute(r: Uint8Array): [number, number, number][] {
 
 
 export function decodeGroupState(gs: Uint8Array): ClientState {
-    return fromJsonString(new TextDecoder().decode(gs), defaultClientConfig)! //todo proper config
+    return fromJsonString(new TextDecoder().decode(gs), clientConfig)! //todo proper config
 }
 
 
-export function decodeManifest(m: Uint8Array): Manifest2 {
+export function decodeManifest(m: Uint8Array): Manifest {
     return decode(m)
 }

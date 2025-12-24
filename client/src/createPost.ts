@@ -1,5 +1,5 @@
 import { CiphersuiteImpl, createApplicationMessage, ClientState, bytesToBase64 } from "ts-mls"
-import { CurrentPostManifest, DerivedMetrics, Manifest2, overflowManifest, PostMeta, StorageIdentifier, upsertPost } from "./manifest"
+import { CurrentPostManifest, DerivedMetrics, Manifest, overflowManifest, PostMeta, StorageIdentifier, upsertPost } from "./manifest"
 import { encode } from "cbor-x"
 import { MessageClient } from "./http/messageClient"
 
@@ -17,26 +17,32 @@ export async function createPost(
   content: Uint8Array,
   metrics: DerivedMetrics,
   title: string,
+  thumbnail: Uint8Array,
+  media: Uint8Array[],
+  date: number,
   userId: string,
   postManifest: CurrentPostManifest,
   postManifestId: StorageIdentifier,
   mlsGroup: ClientState,
-  manifest: Manifest2,
+  manifest: Manifest,
   manifestId: Uint8Array,
   store: LocalStore,
   remoteStore: RemoteStore,
   messageClient: MessageClient,
   impl: CiphersuiteImpl,
   masterKey: Uint8Array
-): Promise<[ClientState, CurrentPostManifest, Manifest2]> {
+): Promise<[ClientState, CurrentPostManifest, Manifest]> {
 
   //todo parallelize this with the updating of the manifest
   const storageIdentifier = await encryptAndStore(mlsGroup, impl, remoteStore, content)
 
+  const mediaIds = await Promise.all(media.map(m => encryptAndStore(mlsGroup, impl, remoteStore, m)))
+
+  const thumbnailId = await encryptAndStore(mlsGroup, impl, remoteStore, thumbnail)
 
   const postMeta: PostMeta = {
     title,
-    date: Date.now(),
+    date,
     metrics,
     totalLikes: 0,
     sampleLikes: [],
@@ -45,6 +51,8 @@ export async function createPost(
     main: storageIdentifier,
     comments: undefined,
     likes: undefined,
+    media: mediaIds,
+    thumbnail: thumbnailId
   }
 
 
@@ -70,7 +78,7 @@ export async function createPost(
     
     const newPostManifestId = await encryptAndStore(mlsGroup, impl, remoteStore, encodeCurrentPostManifest(newPostManifest))
 
-    const newManifest: Manifest2 = {...manifest, currentPostManifest: newPostManifestId}
+    const newManifest: Manifest = {...manifest, currentPostManifest: newPostManifestId}
 
     await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId)
 
@@ -174,7 +182,3 @@ export async function derivePostSecret(mlsGroup: ClientState, impl: CiphersuiteI
 }
 
 
-
-function createManifestId(newManifest: CurrentPostManifest): string {
-  return bytesToBase64(crypto.getRandomValues(new Uint8Array(32))) //todo use hash?
-}

@@ -6,28 +6,12 @@ export type StorageIdentifier = [string, Uint8Array]
 
 // use a new post manifest every time the master key is rotated
 
-export interface PostManifest {
-  posts: StorageIdentifier[]
-}
 
-export interface Post {
-  content: Uint8Array
-  name: string
-  comments: StorageIdentifier[]
-}
-
-//todo make manifest use storageidentifier to allower easier updating
 export interface Manifest {
-  id: string
-  currentPostManifest: CurrentPostManifest
-  groupStateManifest: GroupStateManifest
-  followeeManifests: Map<string, CurrentPostManifest>
-}
-
-export interface Manifest2 {
   currentPostManifest: StorageIdentifier
   groupStateManifest: Uint8Array
   followeeManifests: Map<string, StorageIdentifier>
+  followRequests: Uint8Array
 }
 
 export interface GroupStateManifest {
@@ -51,7 +35,10 @@ export interface PostMeta {
   main: StorageIdentifier
   comments: StorageIdentifier | undefined
   likes: StorageIdentifier | undefined
+  thumbnail: StorageIdentifier
+  media: StorageIdentifier[]
 }
+
 //TODO should these be initalized with empty objects in storage instead?
 
 //todo add commentId?

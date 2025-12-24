@@ -11,6 +11,8 @@ import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { MessageClient } from "pathhub-client/src/http/messageClient.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { encodeRoute } from "pathhub-client/src/codec/encode.js";
+import { decodeBlobWithMime, encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
+import { ThumbnailRenderer } from "./ThumbnailRenderer";
 
 export interface ActivityRecord {
   "Activity Count": string;
@@ -119,7 +121,6 @@ export interface ActivityRecord {
 export function ZipExtractor() {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0)
-  const [files, setFiles] = useState<string[]>([]);
   const {user, updateUser} = useAuthRequired()
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +132,6 @@ export function ZipExtractor() {
     const entries = await zipReader.getEntries();
 
     setProgress(0);
-    setFiles([]);
 
     const activities = entries.find(e => e.filename === 'activities.csv')
     if (!activities || activities.directory) return;
@@ -147,10 +147,19 @@ export function ZipExtractor() {
             return x
         } else return acc} ,{})
 
+    const mediaMap: Record<string, Entry> = entries.reduce((acc, cur) => {
+        if (cur.filename.startsWith("media/")) {
+            const x = {...acc, [cur.filename]: cur}
+            return x
+        } else return acc} ,{})
+
     const ls = await makeStore(user.id)
     const rs = await createRemoteStore(createContentClient("/storage", user.token))
-    let currentManifest = user.currentManifest
-    for (const [n, record] of result.entries()) {
+    const thumbRenderer = new ThumbnailRenderer()
+    let currentPostManifest = user.currentManifest
+    let currentManifest = user.manifest
+    let currentGroup = user.ownGroupState
+    for (const [n, record] of result.slice(0, 40).entries()) {
         
         if (!record.Filename || record.Filename === "#error#") {
             continue;
@@ -161,8 +170,27 @@ export function ZipExtractor() {
         if (!entry.filename.endsWith(".gpx")) {
             continue;
         }
+        const mediaUrls: string[] = record.Media.split("|")
 
-        const blob = await entry.getData(new BlobWriter("text/csv"))
+        const media: Uint8Array[] = []
+        for (const url of mediaUrls) {
+          if (!url) {
+            continue;
+          }
+          if (!url.endsWith(".jpg")) {
+            console.log("found non jpg url", url)
+            continue;
+          }
+          const e = mediaMap[url]
+          if (e.directory) throw new Error("Not good at all")
+
+          const b = await e.getData(new BlobWriter("image/jpeg"))
+          media.push(encodeBlobWithMime(await b.arrayBuffer(), "image/jpeg"))
+        }
+
+        const date = new Date(record["Activity Date"]).getTime()
+
+        const blob = await entry.getData(new BlobWriter("application/xml"))
         const text = await blob.text()
 
         const parsed = parseTrackData(text, 3, 0.09)
@@ -172,14 +200,22 @@ export function ZipExtractor() {
         }
 
         const content = encodeRoute(parsed.coords)
-        const [newGroup, newManifest] = await createPost(content, 
+
+        const blobThumb = await thumbRenderer.render(parsed.coords)
+        
+        const thumb = encodeBlobWithMime(await blobThumb.arrayBuffer(), blobThumb.type)
+
+        const [newGroup, newPostManifest, newManifest] = await createPost(content, 
               {elevation: parsed.totalElevationGain, duration: parsed.totalDuration, distance: parsed.totalDistance},
               record["Activity Name"],
+              thumb,
+              media,
+              date,
               user.id,
-              currentManifest,
-              user.manifest.currentPostManifest,
+              currentPostManifest,
+              currentManifest.currentPostManifest,
               user.ownGroupState,
-              user.manifest,
+              currentManifest,
               base64urlToUint8(user.manifestId),
               ls,
               rs,
@@ -187,39 +223,15 @@ export function ZipExtractor() {
               await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
               user.masterKey
             )
+        currentPostManifest = newPostManifest
         currentManifest = newManifest
-        updateUser({currentManifest, ownGroupState: newGroup})
-        console.log(currentManifest)
+        currentGroup = newGroup
 
         setProgress(n + 1)
     }
+    thumbRenderer.destroy()
+    updateUser({currentManifest: currentPostManifest, manifest: currentManifest, ownGroupState: currentGroup})
     setProgress(result.length)
-
-    // // Loop over each entry
-    // for (let i = 0; i < entries.length; i++) {
-    //   const entry = entries[i];
-      
-
-    //   // Skip folders
-    //   if (entry.directory) {
-    //     setFiles(prev => [...prev, entry.filename + "/"]);
-    //     setProgress(prev => prev + 1);
-    //     continue;
-    //   }
-
-    //   // Extract file into a Blob
-    //   const blob = await entry.getData(new BlobWriter());
-    //   setFiles(prev => [...prev, entry.filename]);
-    //   setProgress(prev => prev + 1);
-
-    //   // Optionally, do something with the file, e.g. download:
-    //   // const url = URL.createObjectURL(blob);
-    //   // const a = document.createElement('a');
-    //   // a.href = url;
-    //   // a.download = entry.filename;
-    //   // a.click();
-    //   // URL.revokeObjectURL(url);
-    // }
 
     await zipReader.close();
   };
@@ -228,11 +240,6 @@ export function ZipExtractor() {
     <div>
       <input type="file" accept=".zip" onChange={handleFile} />
       <p>Progress: {progress} out of {total}</p>
-      <ul>
-        {files.map((f, i) => (
-          <li key={i}>{f}</li>
-        ))}
-      </ul>
     </div>
   );
 }
