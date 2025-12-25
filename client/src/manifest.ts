@@ -8,7 +8,7 @@ export type StorageIdentifier = [string, Uint8Array]
 
 
 export interface Manifest {
-  currentPostManifest: StorageIdentifier
+  postManifest: StorageIdentifier
   groupStateManifest: Uint8Array
   followeeManifests: Map<string, StorageIdentifier>
   followRequests: Uint8Array
@@ -63,45 +63,19 @@ export interface Totals {
   totalDerivedMetrics: DerivedMetrics
 }
 
-export interface CurrentPostManifest {
+export interface PostManifestPage {
   posts: PostMeta[]
+  pageIndex: number
+}
+
+export interface PostManifest {
   totals: Totals
-  manifestIndex: number
-  oldManifests: { usedUntil: number; postManifest: StorageIdentifier }[]
+  currentPage: StorageIdentifier
+  pages: { usedUntil: number; page: StorageIdentifier }[]
 }
 
 
-export function overflowManifest(manifest: CurrentPostManifest, storageId: StorageIdentifier, postMeta: PostMeta): CurrentPostManifest {
-  return {
-    posts: [postMeta],
-    totals: manifest.totals,
-    manifestIndex: manifest.manifestIndex + 1,
-    oldManifests: [...manifest.oldManifests, {usedUntil: Date.now(), postManifest: storageId}]
-  }
-}
-
-export function upsertPost(manifest: CurrentPostManifest, meta: PostMeta): CurrentPostManifest {
-  const index = manifest.posts.findIndex(pm => pm.main[0]== meta.main[0])
-
-  if (index >= 0)
-    return {
-      ...manifest,
-      posts: [...manifest.posts.slice(0, index), meta, ...manifest.posts.slice(index + 1, manifest.posts.length)]
-    }
-  else {
-    const updatedTotals = {
-      totalPosts: manifest.totals.totalPosts + 1,
-      totalDerivedMetrics: addDerivedMetrics(manifest.totals.totalDerivedMetrics, meta.metrics),
-    }
-    return {
-      ...manifest,
-      totals: updatedTotals,
-      posts: [...manifest.posts, meta]
-    }
-  }
-}
-
-function addDerivedMetrics(a: DerivedMetrics, b: DerivedMetrics): DerivedMetrics {
+export function addDerivedMetrics(a: DerivedMetrics, b: DerivedMetrics): DerivedMetrics {
   return {
     distance: a.distance + b.distance,
     elevation: a.elevation + b.elevation,

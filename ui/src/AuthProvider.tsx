@@ -2,12 +2,8 @@ import { useState, ReactNode, useEffect } from "react";
 import { AuthContext, User } from "./authContext.js";
 import { AuthenticationClient, createAuthClient, parseToken } from "pathhub-client/src/authClient.js";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
-import { CurrentPostManifest } from "pathhub-client/src/manifest.js";
-import {deriveGroupIdFromUserId} from "pathhub-client/src/mlsInteractions.js"
-import {initGroupState, initManifest} from "pathhub-client/src/init.js"
-import { bytesToBase64 } from "ts-mls";
-import { base64ToBytes } from "ts-mls/util/byteArray.js";
-import { base64urlToUint8, createRemoteStore, retrieveAndDecryptCurrentManifest, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
+import {getOrCreateManifest} from "pathhub-client/src/init.js"
+import { base64urlToUint8, createRemoteStore, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 
 interface AuthProviderProps {
@@ -30,10 +26,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (expires * 1000 <= Date.now()) return
 
-        const { userId, username, manifest, postManifest, groupState } = await setupUserState(token, manifestId, masterKey);
+        const { userId, username, manifest, postManifest, page, groupState } = await setupUserState(token, manifestId, masterKey);
         
 
-        setUser({id: userId, name: username, currentManifest:postManifest, manifest, manifestId, ownGroupState: groupState, masterKey, token })
+        setUser({id: userId, name: username, currentPage: page,  postManifest, manifest, manifestId, ownGroupState: groupState, masterKey, token })
     }
     setupState()
   }, [])
@@ -45,9 +41,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("manifest_id", res.manifest)
     localStorage.setItem("master_key", uint8ToBase64Url(res.masterKey))
 
-    const { userId, manifest, postManifest, groupState } = await setupUserState(res.token, res.manifest, res.masterKey)
+    const { userId, manifest, postManifest, page, groupState } = await setupUserState(res.token, res.manifest, res.masterKey)
 
-    setUser({id: userId, name: username, currentManifest: postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey })
+    setUser({id: userId, name: username, currentPage: page, postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey })
     
   }
 
@@ -80,8 +76,8 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
     const ls = await makeStore(userId);
     const rs = await createRemoteStore(createContentClient("/storage", token))
 
-    const [manifest, postManifest, groupState] = await initManifest(userId, manifestId, masterKey, rs)
+    const [manifest, postManifest, page ,groupState] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
 
-    return { userId, username, manifest, postManifest, groupState };
+    return { userId, username, manifest, postManifest, page, groupState };
 }
 

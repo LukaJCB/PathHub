@@ -1,13 +1,11 @@
-import {Comment, PostMeta} from "pathhub-client/src/manifest.js"
+import {Comment, PostManifestPage, PostMeta, StorageIdentifier} from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react";
 import { useAuthRequired } from "./useAuth";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
-import LeafletRouteMap from "./LeafleftMapView";
 import { useParams } from "react-router";
-import { createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
+import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
-import { decode } from "cbor-x";
 import { commentPost, likePost, unlikePost } from "pathhub-client/src/postInteraction.js";
 import { decodeComments, decodeLikes, decodeRoute } from "pathhub-client/src/codec/decode.js";
 import { getPage } from "./ProfileView";
@@ -22,6 +20,7 @@ export const PostView = () => {
     const storageId = params.storageId
     const page = parseInt(params.page!)
     const [post, setPost] = useState<PostMeta | null>(null)
+    const [postManifestPage, setPostManifestPage] = useState<[PostManifestPage, StorageIdentifier] | null>(null)
     const [imageUrls, setImageUrls] = useState<string[]>([])
     const [comments, setComments] = useState<Comment[]>([])
     const [likes, setLikes] = useState(0)
@@ -35,9 +34,10 @@ export const PostView = () => {
             const ls = await makeStore(user.id)
             const rs = await createRemoteStore(createContentClient("/storage", user.token))
 
-            const currentManifest = await getPage(user.currentManifest, page, user.token)
+            const currentPage = await getPage(user.currentPage, user.postManifest, page, user.token)
+            setPostManifestPage(currentPage)
 
-            const p = currentManifest.posts.find(pm => pm.main[0] === storageId)
+            const p = currentPage[0].posts.find(pm => pm.main[0] === storageId)
             setPost(p!)
 
             const l = p?.likes
@@ -86,16 +86,21 @@ export const PostView = () => {
         const {newManifest, comment} = await commentPost(commentText, post!, 
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
              user.ownGroupState, true, user.id, rs, 
-             user.currentManifest,
-             user.manifest.currentPostManifest,
+             postManifestPage![0], 
+             postManifestPage![1],
+             user.postManifest,
+             user.manifest,
+             base64urlToUint8(user.manifestId),
+             user.masterKey,
              await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
         setComments([...comments, comment])
         setCommentText("")
         
         if (newManifest) {
-            setPost(newManifest[1])
-            updateUser({currentManifest: newManifest[0]})
+            const [manifest, postManifest, page, post] = newManifest
+            setPost(post)
+            updateUser({currentPage: page, manifest, postManifest})
         }
         
     }
@@ -107,14 +112,19 @@ export const PostView = () => {
         const {newManifest, like} = await likePost(post!, 
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
              user.ownGroupState, true, user.id, rs, 
-             user.currentManifest,
-             user.manifest.currentPostManifest,
+             postManifestPage![0], 
+             postManifestPage![1],
+             user.postManifest,
+             user.manifest,
+             base64urlToUint8(user.manifestId),
+             user.masterKey,
              await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
         
         if (newManifest) {
-            setPost(newManifest[1])
-            updateUser({currentManifest: newManifest[0]})
+            const [manifest, postManifest, page, post] = newManifest
+            setPost(post)
+            updateUser({currentPage: page, manifest, postManifest})
         }
     }
 
@@ -125,15 +135,20 @@ export const PostView = () => {
         setUserHasLiked(false)
         const {newManifest} = await unlikePost(post!, 
              user.ownGroupState, true, user.id, rs, 
-             user.currentManifest,
-             user.manifest.currentPostManifest,
+             postManifestPage![0], 
+             postManifestPage![1],
+             user.postManifest,
+             user.manifest,
+             base64urlToUint8(user.manifestId),
+             user.masterKey,
              await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
 
         
         if (newManifest) {
-            setPost(newManifest[1])
-            updateUser({currentManifest: newManifest[0]})
+            const [manifest, postManifest, page, post] = newManifest
+            setPost(post)
+            updateUser({currentPage: page, manifest, postManifest})
         }
     }
 

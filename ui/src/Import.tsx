@@ -156,7 +156,8 @@ export function ZipExtractor() {
     const ls = await makeStore(user.id)
     const rs = await createRemoteStore(createContentClient("/storage", user.token))
     const thumbRenderer = new ThumbnailRenderer()
-    let currentPostManifest = user.currentManifest
+    let currentPage = user.currentPage
+    let currentPostManifest = user.postManifest
     let currentManifest = user.manifest
     let currentGroup = user.ownGroupState
     for (const [n, record] of result.slice(0, 40).entries()) {
@@ -205,15 +206,15 @@ export function ZipExtractor() {
         
         const thumb = encodeBlobWithMime(await blobThumb.arrayBuffer(), blobThumb.type)
 
-        const [newGroup, newPostManifest, newManifest] = await createPost(content, 
+        const [newGroup, newPage, newPostManifest, newManifest] = await createPost(content, 
               {elevation: parsed.totalElevationGain, duration: parsed.totalDuration, distance: parsed.totalDistance},
               record["Activity Name"],
               thumb,
               media,
               date,
               user.id,
+              currentPage,
               currentPostManifest,
-              currentManifest.currentPostManifest,
               user.ownGroupState,
               currentManifest,
               base64urlToUint8(user.manifestId),
@@ -223,6 +224,7 @@ export function ZipExtractor() {
               await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
               user.masterKey
             )
+        currentPage = newPage
         currentPostManifest = newPostManifest
         currentManifest = newManifest
         currentGroup = newGroup
@@ -230,7 +232,7 @@ export function ZipExtractor() {
         setProgress(n + 1)
     }
     thumbRenderer.destroy()
-    updateUser({currentManifest: currentPostManifest, manifest: currentManifest, ownGroupState: currentGroup})
+    updateUser({currentPage: currentPage, postManifest: currentPostManifest, manifest: currentManifest, ownGroupState: currentGroup})
     setProgress(result.length)
 
     await zipReader.close();

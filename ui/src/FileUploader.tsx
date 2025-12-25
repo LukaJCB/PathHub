@@ -1,5 +1,4 @@
 import React, { useState, ChangeEvent, DragEvent, useEffect, useRef } from 'react';
-import LeafletRouteMap from './LeafleftMapView';
 import { useAuthRequired } from './useAuth';
 import { createPost} from 'pathhub-client/src/createPost.js'
 import { makeStore } from 'pathhub-client/src/indexedDbStore.js';
@@ -9,8 +8,7 @@ import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
 import { useNavigate } from 'react-router';
 import { base64urlToUint8, createRemoteStore } from 'pathhub-client/src/remoteStore.js';
 import {decodeBlobWithMime, encodeBlobWithMime} from "pathhub-client/src/imageEncoding.js"
-import { createContentClient, StorageClient } from 'pathhub-client/src/http/storageClient.js';
-import { domToBlob } from "modern-screenshot"
+import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
 import MapLibreRouteMap from './MapLibreView';
 import {renderRouteThumbnail} from "./ThumbnailRenderer"
 
@@ -143,15 +141,15 @@ const FileUpload: React.FC = () => {
 
     const thumb = encodeBlobWithMime(await blob.arrayBuffer(), blob.type)
 
-    const [newGroup, newPostManifest, newManifest] = await createPost(content, 
+    const [newGroup, newPostManifestPage, newPostManifest, newManifest] = await createPost(content, 
       {elevation: gpxData!.totalElevation, duration: gpxData!.totalDuration, distance: gpxData!.totalDistance},
       title,
       thumb,
       imageData,
       Date.now(),
       user.id,
-      user.currentManifest,
-      user.manifest.currentPostManifest,
+      user.currentPage,
+      user.postManifest,
       user.ownGroupState,
       user.manifest,
       base64urlToUint8(user.manifestId),
@@ -162,7 +160,9 @@ const FileUpload: React.FC = () => {
       user.masterKey
     )
 
-    updateUser({currentManifest: newPostManifest, manifest: newManifest, ownGroupState: newGroup})
+    console.log(user.currentPage, user.postManifest, user.manifest)
+
+    updateUser({currentPage: newPostManifestPage, postManifest: newPostManifest, manifest: newManifest, ownGroupState: newGroup})
 
     nav("/")
   };

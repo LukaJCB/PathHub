@@ -1,6 +1,6 @@
 import { openDB, DBSchema } from "idb"
 import { bytesToBase64, KeyPackage, PrivateKeyPackage } from "ts-mls"
-import { CurrentPostManifest } from "./manifest"
+import { PostManifestPage } from "./manifest"
 import { LocalStore } from "./localStore"
 import { defaultClientConfig } from "ts-mls/clientConfig.js"
 import { fromJsonString, toJsonString } from "ts-mls/codec/json.js"
@@ -17,7 +17,7 @@ interface Schema extends DBSchema {
   manifests: {
     key: string
     value: {
-      manifest: CurrentPostManifest
+      manifest: PostManifestPage
       user: string
     }
     indexes: { user: string }

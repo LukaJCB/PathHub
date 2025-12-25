@@ -135,7 +135,17 @@ When the owner receives the comment or like, they should amend the record to the
 
 When any other user receives the comment or like, they need to store it.
 (TODO how to store them?)
+All comments or likes need to be stored until there is a new epoch for that group. 
+At that point it can be guaranteed that the group owner has added all interactions to their manifest.
 
+### Interacting with an old post
+
+If someone comments on an old post (i.e. a post that is not within the current manifest) the entire post manifest will be updated and thus re-encrypted.
+
+todo somewhere we need to compare the current group secret with the StorageIdentifier for a post. 
+ If they are different, the key needs to be rotated and the rotation needs to cascade all the way up.
+ i.e. if a comment is added to an old post, the comments need to be encrypted with a new key and then
+ the PostManifestPage needs to be re-encrypted with a new key as well and that key needs to be updated in the postManifest
 
 
 ## Removing someone as a follower

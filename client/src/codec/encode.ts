@@ -1,10 +1,10 @@
 import { encode } from "cbor-x";
-import { Comment, CurrentPostManifest, Like, Manifest } from "../manifest";
+import { Comment, PostManifestPage, Like, Manifest, PostManifest } from "../manifest";
 import { CommentTbs, LikeTbs } from "../postInteraction";
 import { ClientState } from "ts-mls";
 import { toJsonString } from "ts-mls/codec/json.js";
 
-export function encodeCurrentPostManifest(pm: CurrentPostManifest): Uint8Array {
+export function encodePostManifestPage(pm: PostManifestPage): Uint8Array {
     return encode(pm)
 }
 
@@ -45,6 +45,11 @@ export function encodeGroupState(gs: ClientState): Uint8Array {
 
 export function encodeFollowRequests(reqs: Uint8Array[]): Uint8Array {
     return encode(reqs)
+}
+
+
+export function encodePostManifest(m: PostManifest): Uint8Array {
+    return encode(m)
 }
 
 

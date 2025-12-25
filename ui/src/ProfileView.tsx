@@ -1,7 +1,7 @@
-import {CurrentPostManifest, PostMeta} from "pathhub-client/src/manifest.js"
+import {PostManifest, PostManifestPage, PostMeta, StorageIdentifier} from "pathhub-client/src/manifest.js"
 import { Link, useParams } from "react-router";
 import { useAuthRequired } from "./useAuth";
-import { createRemoteStore, retrieveAndDecryptContent, retrieveAndDecryptCurrentManifest } from "pathhub-client/src/remoteStore.js";
+import { createRemoteStore, retrieveAndDecryptContent, retrieveAndDecryptPostManifestPage } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { useEffect, useState } from "react";
 import { decodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
@@ -13,14 +13,15 @@ export const ProfileView: React.FC = () => {
     const params = useParams();
     const page = parseInt(params.page!)
     const profileUserId = params.userId
-    const [postManifest, setPostManifest] = useState<CurrentPostManifest | null>(null)
+    const [postManifestPage, setPostManifestPage] = useState<PostManifestPage | null>(null)
     useEffect(() => {
         const fetchData = async () => {
             if (user.id === profileUserId) {
-                const pm = await getPage(user.currentManifest, page, user.token)
-                setPostManifest(pm)
+                const [pmp, pmpId] = await getPage(user.currentPage, user.postManifest, page, user.token)
+                console.log(pmp)
+                setPostManifestPage(pmp)
             } else {
-                //todo fetch currentManifest from profileUserId
+                //todo fetch post manifest page from profileUserId
             }
             
         }
@@ -35,19 +36,19 @@ export const ProfileView: React.FC = () => {
         
         <div>
             <h2>Totals</h2>
-            <div>Total Posts: {user.currentManifest.totals.totalPosts}</div>
-            <div>Total Duration: {user.currentManifest.totals.totalDerivedMetrics.duration / 3600000} hours</div>
-            <div>Total Elevation: {user.currentManifest.totals.totalDerivedMetrics.elevation} meters</div>
-            <div>Total Distance: {user.currentManifest.totals.totalDerivedMetrics.distance / 1000} kilometers</div>
+            <div>Total Posts: {user.postManifest.totals.totalPosts}</div>
+            <div>Total Duration: {user.postManifest.totals.totalDerivedMetrics.duration / 3600000} hours</div>
+            <div>Total Elevation: {user.postManifest.totals.totalDerivedMetrics.elevation} meters</div>
+            <div>Total Distance: {user.postManifest.totals.totalDerivedMetrics.distance / 1000} kilometers</div>
         </div>
-        {postManifest && (<>{postManifest.posts.map(post =>
+        {postManifestPage && (<>{postManifestPage.posts.map(post =>
             <PostPreview post={post} userId={user.id} page={page} token={user.token} key={post.main[0]}/>
         )}</>)}
         {page > 0 ? 
           <Link to={`/user/${user.id}/${page - 1}`} > {"<"} </Link> 
           : <></>
         }
-        {page < user.currentManifest.manifestIndex ? 
+        {page < user.currentPage.pageIndex ? 
           <Link to={`/user/${user.id}/${page + 1}`} > {">"} </Link> 
           : <></>
         }
@@ -56,16 +57,18 @@ export const ProfileView: React.FC = () => {
     )
 }
 
-export async function getPage(pm: CurrentPostManifest, page: number, token: string): Promise<CurrentPostManifest> {
-    const index = pm.manifestIndex - page
-    if (pm.manifestIndex == index) {
-        return pm
+export async function getPage(currentPage: PostManifestPage, postManifest: PostManifest, pageNumber: number, token: string): Promise<[PostManifestPage, StorageIdentifier]> {
+    const index = currentPage.pageIndex - pageNumber
+    if (currentPage.pageIndex == index) {
+        return [currentPage, postManifest.currentPage]
     } else {
-        const pmId = pm.oldManifests[index].postManifest
+        console.log(postManifest)
+        console.log(index, postManifest.pages, pageNumber)
+        const pageId = postManifest.pages[index].page
 
         const rs = await createRemoteStore(createContentClient("/storage", token))
-        const manifest = await retrieveAndDecryptCurrentManifest(rs, pmId)
-        return manifest!
+        const page = await retrieveAndDecryptPostManifestPage(rs, pageId)
+        return [page!, pageId]
     }
 }
 

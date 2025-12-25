@@ -1,6 +1,6 @@
-import { Comment, CurrentPostManifest, Like, PostMeta, StorageIdentifier } from "./manifest";
+import { Comment, PostManifestPage, Like, PostMeta, StorageIdentifier, PostManifest, Manifest } from "./manifest";
 import {  CiphersuiteImpl, ClientState } from "ts-mls";
-import { encryptAndStore, updatePostManifest } from "./createPost";
+import { encryptAndStore, replaceInPage } from "./createPost";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent } from "./remoteStore";
 import { toBufferSource } from "ts-mls/util/byteArray.js";
 import { encodeComment, encodeComments, encodeCommentTbs, encodeLike, encodeLikes, encodeLikeTbs } from "./codec/encode";
@@ -15,10 +15,14 @@ export async function commentPost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  manifest: CurrentPostManifest,
-  manifestId: StorageIdentifier,
+  page: PostManifestPage,
+  pageId: StorageIdentifier,
+  postManifest: PostManifest,
+  manifest: Manifest,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
   impl: CiphersuiteImpl
-): Promise<{ newManifest: [CurrentPostManifest, PostMeta] | undefined; comment: Comment; }> {
+): Promise<{ newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined; comment: Comment; }> {
   const commentTbs: CommentTbs = {
     postId: meta.main[0],
     author: authorId,
@@ -46,9 +50,9 @@ export async function commentPost(
       comments: storageIdentifier
     }
 
-    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
+    const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
 
-    return { newManifest: [newManifest, newMeta], comment }
+    return { newManifest: [newManifest, newPostManifest, newPage, newMeta], comment }
   }
 
   return { comment, newManifest: undefined}
@@ -76,10 +80,14 @@ export async function likePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  manifest: CurrentPostManifest,
-  manifestId: StorageIdentifier,
+  page: PostManifestPage,
+  pageId: StorageIdentifier,
+  postManifest: PostManifest,
+  manifest: Manifest,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
   impl: CiphersuiteImpl
-): Promise<{ like: Like, newManifest: [CurrentPostManifest, PostMeta] | undefined}> {
+): Promise<{ like: Like, newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined}> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
     author: authorId,
@@ -107,9 +115,10 @@ export async function likePost(
       likes: storageIdentifier
     }
 
-    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
 
-    return { newManifest: [newManifest, newMeta], like }
+    const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
+
+    return { newManifest: [newManifest, newPostManifest, newPage, newMeta], like }
   }
 
   return {like, newManifest: undefined}
@@ -122,10 +131,14 @@ export async function unlikePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  manifest: CurrentPostManifest,
-  manifestId: StorageIdentifier,
+ page: PostManifestPage,
+  pageId: StorageIdentifier,
+  postManifest: PostManifest,
+  manifest: Manifest,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
   impl: CiphersuiteImpl
-): Promise<{ newManifest: [CurrentPostManifest, PostMeta] | undefined}> {
+): Promise<{ newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined}> {
 
   //send like to mls group
 
@@ -144,9 +157,10 @@ export async function unlikePost(
       likes: storageIdentifier
     }
 
-    const newManifest = await updatePostManifest(manifest, newMeta, manifestId, remoteStore)
+    
+    const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
 
-    return { newManifest: [newManifest, newMeta] }
+    return { newManifest: [newManifest, newPostManifest, newPage, newMeta] }
   }
 
   return {newManifest: undefined}

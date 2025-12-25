@@ -1,15 +1,15 @@
-import { CurrentPostManifest, Manifest, StorageIdentifier } from "./manifest"
+import { PostManifestPage, Manifest, StorageIdentifier, PostManifest } from "./manifest"
 import { StorageClient } from "./http/storageClient"
 import { deriveAccessAndEncryptionKeys } from "./createPost"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
-import { decodeCurrentPostManifest, decodeGroupState, decodeManifest } from "./codec/decode"
+import { decodePostManifestPage, decodeGroupState, decodeManifest, decodePostManifest } from "./codec/decode"
 import { ClientState } from "ts-mls"
 
 //TODO ideally there should be a single storage call that stores it locally and also stores it encrypted remote
 //potentially the store could also store things remotely ever so often to save data
 export interface RemoteStore {
   // storeGroupState(groupId: Uint8Array, state: ClientState): Promise<void>
-  // storeCurrentManifest(userId: string, manifest: CurrentPostManifest, manifestId: string): Promise<void>
+  // storeCurrentManifest(userId: string, manifest: PostManifestPage, manifestId: string): Promise<void>
   // storePostComments(postId: Uint8Array, comment: Comment[]): Promise<void>
   // storePostLikes(postId: Uint8Array, like: Like[]): Promise<void>
   storeContent(id: Uint8Array, content: Uint8Array, nonce: Uint8Array, accessKey: Uint8Array): Promise<string>
@@ -72,16 +72,18 @@ export async function retrieveAndDecryptContent(rs: RemoteStore, id: StorageIden
     return decrypted;
 }
 
-export async function retrieveAndDecryptCurrentManifest(rs: RemoteStore, id: StorageIdentifier): Promise<CurrentPostManifest | undefined> {
+export async function retrieveAndDecryptPostManifestPage(rs: RemoteStore, id: StorageIdentifier): Promise<PostManifestPage | undefined> {
     try {
       const decrypted = await retrieveAndDecryptContent(rs, id);
 
-      return decodeCurrentPostManifest(new Uint8Array(decrypted));
+      return decodePostManifestPage(new Uint8Array(decrypted));
     } catch (e) {
       //todo proper error handling
       return undefined
     }
 }
+
+
 
 export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: string, masterKey: Uint8Array): Promise<ClientState | undefined> {
     try {
@@ -104,6 +106,20 @@ export async function retrieveAndDecryptManifest(rs: RemoteStore, manifestId: st
       return undefined
     }
 }
+
+
+export async function retrieveAndDecryptPostManifest(rs: RemoteStore, id: StorageIdentifier): Promise<PostManifest | undefined> {
+    try {
+      const decrypted = await retrieveAndDecryptContent(rs, id);
+
+      return decodePostManifest(new Uint8Array(decrypted));
+    } catch (e) {
+      //todo proper error handling
+      return undefined
+    }
+}
+
+
 
 
 // there needs to be an index on the date of all followees post metas.
