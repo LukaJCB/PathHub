@@ -36,6 +36,7 @@ export async function build(config: { pgConnection: string; messageTtlSeconds: n
 
       return { status: "ok", userId: payload.sub, username: payload["ph-user"] }
     } catch (e) {
+      console.log(e)
       return { status: "error" }
     }
   }

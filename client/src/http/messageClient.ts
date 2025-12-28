@@ -28,7 +28,7 @@ export function createMessageClient(baseUrl: string, authToken: string): Message
       method: "POST",
       headers: {
         ...CBOR_HEADERS,
-        Authorization: authToken,
+        Authorization: `Bearer ${authToken}`,
       },
       body,
     })
@@ -56,7 +56,7 @@ export function createMessageClient(baseUrl: string, authToken: string): Message
       method: "GET",
       headers: {
         Accept: "application/cbor",
-        Authorization: authToken,
+        Authorization: `Bearer ${authToken}`,
       },
     })
 
@@ -85,7 +85,7 @@ export function createMessageClient(baseUrl: string, authToken: string): Message
       method: "POST",
       headers: {
         ...CBOR_HEADERS,
-        Authorization: authToken,
+        Authorization: `Bearer ${authToken}`,
       },
       body: encode({ messageIds }) as BufferSource,
     })

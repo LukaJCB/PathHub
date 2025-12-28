@@ -11,6 +11,9 @@ import { PublicOnlyRoute } from './PublicOnlyRoute.js';
 import PostView from './PostView.js';
 import { Layout } from './Layout.js';
 import ProfileView from './ProfileView.js';
+import FollowRequestsView from './FollowRequests.js';
+import FollowerView from './FollowerView.js';
+import FollowingView from './FollowingView.js';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -24,6 +27,10 @@ createRoot(document.getElementById('root')).render(
               <Route index element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
               <Route path=":storageId" element={<ProtectedRoute><PostView /></ProtectedRoute>} />
             </Route>
+            <Route path="followRequests" element={<ProtectedRoute><FollowRequestsView /></ProtectedRoute>} />
+            <Route path="followers" element={<ProtectedRoute><FollowerView /></ProtectedRoute>} />
+            <Route path="following" element={<ProtectedRoute><FollowingView /></ProtectedRoute>} />
+            
           </Route>
           <Route path="register" element={<PublicOnlyRoute><RegistrationView /></PublicOnlyRoute>} />
           <Route path="login" element={<PublicOnlyRoute><LoginView /></PublicOnlyRoute>} />

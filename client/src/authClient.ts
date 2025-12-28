@@ -183,12 +183,11 @@ export function createAuthClient(baseUrl: string): AuthenticationClient {
 
 export function parseToken(token: string): { userId: string, expires: number, username: string } {
   const decoded = base64ToBytes(token.split(".").at(1)!)
-    const parsed = JSON.parse(new TextDecoder().decode(decoded))
+  const parsed = JSON.parse(new TextDecoder().decode(decoded))
 
-
-    return {
-      userId: parsed.sub,
-      expires: parsed.expires,
-      username: parsed["ph-user"]
-    }
+  return {
+    userId: parsed.sub,
+    expires: parsed.exp,
+    username: parsed["ph-user"]
+  }
 }

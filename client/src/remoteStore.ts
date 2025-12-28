@@ -1,9 +1,9 @@
-import { PostManifestPage, Manifest, StorageIdentifier, PostManifest } from "./manifest"
+import { PostManifestPage, Manifest, StorageIdentifier, PostManifest, FollowerManifest } from "./manifest"
 import { StorageClient } from "./http/storageClient"
-import { deriveAccessAndEncryptionKeys } from "./createPost"
+import { deriveAccessAndEncryptionKeys, derivePostSecret } from "./createPost"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
-import { decodePostManifestPage, decodeGroupState, decodeManifest, decodePostManifest } from "./codec/decode"
-import { ClientState } from "ts-mls"
+import { decodePostManifestPage, decodeClientState, decodeManifest, decodePostManifest, decodeFollowerManifest } from "./codec/decode"
+import { CiphersuiteImpl, ClientState } from "ts-mls"
 
 //TODO ideally there should be a single storage call that stores it locally and also stores it encrypted remote
 //potentially the store could also store things remotely ever so often to save data
@@ -26,7 +26,7 @@ export interface RemoteStore {
 }
 
 
-export async function createRemoteStore(client: StorageClient): Promise<RemoteStore> {
+export function createRemoteStore(client: StorageClient): RemoteStore {
 
   return {
     async storeContent(id, content, nonce, accessKey) {
@@ -89,7 +89,7 @@ export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: s
     try {
       const decrypted = await retrieveAndDecryptContent(rs, [storageId, masterKey]);
 
-      return decodeGroupState(new Uint8Array(decrypted));
+      return decodeClientState(new Uint8Array(decrypted));
     } catch (e) {
       //todo proper error handling
       return undefined
@@ -120,26 +120,21 @@ export async function retrieveAndDecryptPostManifest(rs: RemoteStore, id: Storag
 }
 
 
+export async function retrieveAndDecryptFollowerPostManifest(rs: RemoteStore, mlsGroup: ClientState, impl: CiphersuiteImpl, followerManifestId: Uint8Array, masterKey: Uint8Array): Promise<[FollowerManifest, PostManifest, PostManifestPage]> {
+  const decrypted = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(followerManifestId), masterKey])
+
+  const fm = decodeFollowerManifest(new Uint8Array(decrypted))
+
+  const postSecret = await derivePostSecret(mlsGroup, impl)
+
+  const [pm, page]= await Promise.all([
+    retrieveAndDecryptPostManifest(rs, [fm.postManifest[0], postSecret]), 
+    retrieveAndDecryptPostManifestPage(rs, [fm.currentPage[0], postSecret])
+  ])
+
+  return [fm, pm!, page!]
+}
 
 
 // there needs to be an index on the date of all followees post metas.
 // then we can query that index to fetch the latest posts
-
-export async function storeContent(content: BufferSource) {
-  // const dek = crypto.subtle.generateKey(
-  //   {
-  //     name: "AES-GCM",
-  //     length: 256,
-  //   },
-  //   true,
-  //   ["encrypt", "decrypt"],
-  // )
-  // // generate nonce
-  // const nonce = crypto.getRandomValues(new Uint8Array(12))
-  // // encrypt content
-  // const encrypted = await crypto.subtle.encrypt(
-  //     { name: "AES-GCM", iv: nonce },
-  //     await dek,
-  //     content,
-  //   )
-}

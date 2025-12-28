@@ -12,6 +12,8 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
+
+  const [loading, setLoading] = useState(true);
   const authClient: AuthenticationClient = createAuthClient("/auth")
 
   useEffect(() => {
@@ -19,17 +21,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const token = localStorage.getItem("auth_token");
         const manifestId = localStorage.getItem("manifest_id")
         const mkey = localStorage.getItem("master_key")
-        if (!token || !manifestId || !mkey) return;
+        if (token && manifestId && mkey) {
+          const masterKey = base64urlToUint8(mkey);
+          //todo don't parse token twice
+          const { expires } = parseToken(token);
 
-        const masterKey = base64urlToUint8(mkey)
-        const {expires} = parseToken(token)
+          if (expires * 1000 > Date.now()) {
+            const { userId, username, manifest, postManifest, page, groupState } =
+              await setupUserState(token, manifestId, masterKey);
 
-        if (expires * 1000 <= Date.now()) return
+            setUser({
+              id: userId,
+              name: username,
+              currentPage: page,
+              postManifest,
+              manifest,
+              manifestId,
+              ownGroupState: groupState,
+              masterKey,
+              token
+            });
+          }
+        }
 
-        const { userId, username, manifest, postManifest, page, groupState } = await setupUserState(token, manifestId, masterKey);
-        
-
-        setUser({id: userId, name: username, currentPage: page,  postManifest, manifest, manifestId, ownGroupState: groupState, masterKey, token })
+        setLoading(false);
     }
     setupState()
   }, [])
@@ -59,7 +74,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // todo clear state?
   }
 
-  const value = { user, login, logout, updateUser };
+  const value = { user, login, logout, loading, updateUser };
 
   return (
     <AuthContext.Provider value={value}>
@@ -71,13 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 async function setupUserState(token: string, manifestId: string, masterKey: Uint8Array) {
   const {userId, username} = parseToken(token)
-
-
     const ls = await makeStore(userId);
     const rs = await createRemoteStore(createContentClient("/storage", token))
 
-    const [manifest, postManifest, page ,groupState] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
+    const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
 
-    return { userId, username, manifest, postManifest, page, groupState };
+    return { userId, username, manifest, postManifest, page, groupState,keyPair };
 }
 

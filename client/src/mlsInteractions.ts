@@ -1,11 +1,13 @@
-import { ClientState, bytesToBase64 } from "ts-mls";
+import { ClientState } from "ts-mls";
+
+import { getUserIdFromCredential } from "./init";
 
 //todo use array instead of individual strings
 export function recipientsFromMlsState(exclude: string[], clientState: ClientState): string[] {
   const recipients = []
   for (const x of clientState.ratchetTree) {
     if (x?.nodeType === 'leaf' && x.leaf.credential.credentialType === 'basic') {
-      const userId = bytesToBase64(x.leaf.credential.identity)
+      const userId = getUserIdFromCredential(x.leaf.credential)
       if (!exclude.includes(userId)) {
         recipients.push(userId)
       }

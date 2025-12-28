@@ -7,7 +7,11 @@ interface PublicOnlyRouteProps {
 }
 
 export function PublicOnlyRoute({ children }: PublicOnlyRouteProps) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <>loading...</>;
+  }
 
   if (user) {
     return <Navigate to="/" replace />;

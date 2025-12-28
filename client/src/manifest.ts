@@ -1,22 +1,25 @@
-import { ClientState } from "ts-mls"
 
-//First array is the objectId, second is the key
+//First is the objectId, second is the key
 export type StorageIdentifier = [string, Uint8Array]
 
 
-// use a new post manifest every time the master key is rotated
-
-
+// use a new manifest every time the master key is rotated
 export interface Manifest {
   postManifest: StorageIdentifier
-  groupStateManifest: Uint8Array
-  followeeManifests: Map<string, StorageIdentifier>
+  //todo should group states and follower manifests be combined?
+  groupStates: Map<string, Uint8Array>
+  followerManifests: Map<string, Uint8Array>
   followRequests: Uint8Array
 }
 
-export interface GroupStateManifest {
-  groupStates: { groupId: Uint8Array; state: ClientState }[]
+
+//for every user you're following you should store their post manifest id&key as well as their current page id&key
+//why do we need both? shouldn't the post manifest be enough?
+export interface FollowerManifest {
+  postManifest: StorageIdentifier,
+  currentPage: StorageIdentifier
 }
+
 
 export interface DerivedMetrics {
   distance: number

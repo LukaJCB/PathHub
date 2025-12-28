@@ -27,8 +27,8 @@ importers:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
       ts-mls:
-        specifier: 1.4.3
-        version: 1.4.3(@noble/ciphers@2.0.1)
+        specifier: 1.5.0
+        version: 1.5.0(@noble/ciphers@2.0.1)
     devDependencies:
       '@eslint/js':
         specifier: 9.37.0
@@ -2077,13 +2077,13 @@ packages:
     resolution: {integrity: sha512-XyLVuhBVvdJTJr2FJJV2L1pc4MwSjMhcunRVgDE9k4wbb2ee7ORYnPewxMWUav12vxyfUM686MSGsqnVRIInuw==}
     engines: {node: '>=18'}
 
-  ts-mls@1.4.3:
-    resolution: {integrity: sha512-Suarl/GV93qr8bdnZsbMb0BqTHDjJZdd4mRi5oHpn5qDCT/LBosEYe3h2UvbKUs9WLGO80inK+eet+oCBzABSQ==}
+  ts-mls@1.5.0:
+    resolution: {integrity: sha512-hfizW36GtJ69NrUDOLdAqErkP6jSEJ/N15siFrTRiDOXsCEAQcu2AiJiXootj3xWORqc94Zr4U8XTLNblKJq4A==}
     peerDependencies:
       '@hpke/chacha20poly1305': 1.7.1
       '@hpke/hybridkem-x-wing': 0.6.1
       '@hpke/ml-kem': 0.2.1
-      '@noble/ciphers': 2.0.1
+      '@noble/ciphers': 2.1.1
       '@noble/curves': 2.0.1
       '@noble/post-quantum': 0.5.2
     peerDependenciesMeta:
@@ -4438,7 +4438,7 @@ snapshots:
       '@ts-graphviz/common': 2.1.5
       '@ts-graphviz/core': 2.0.7
 
-  ts-mls@1.4.3(@noble/ciphers@2.0.1):
+  ts-mls@1.5.0(@noble/ciphers@2.0.1):
     dependencies:
       '@hpke/core': 1.7.5
       '@noble/ciphers': 2.0.1

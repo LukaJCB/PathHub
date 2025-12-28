@@ -53,7 +53,7 @@ export async function build(config: {
     } catch (e) {
       console.log(e)
       return { status: "error" }
-    }
+    } 
   }
 
   const putContentSchema = {

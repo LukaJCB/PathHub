@@ -3,7 +3,7 @@ import { AuthContext } from "./authContext.js";
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  ctx?.user
+
   if (!ctx) {
     throw new Error("useAuth must be used inside an AuthProvider");
   }

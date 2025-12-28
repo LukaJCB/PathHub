@@ -2,11 +2,11 @@ services:
   postgres:
     image: postgres:15
     ports:
-      - "5432:5432"
+      - "5431:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: messages
+      POSTGRES_DB: postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s

@@ -16,6 +16,7 @@ export interface User {
 
 export interface AuthContextValue {
   user: User | null;
+  loading: boolean
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void

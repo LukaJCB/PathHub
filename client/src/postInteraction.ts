@@ -50,6 +50,7 @@ export async function commentPost(
       comments: storageIdentifier
     }
 
+    //todo send mls message to everyone who has previously commented on the post
     const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
 
     return { newManifest: [newManifest, newPostManifest, newPage, newMeta], comment }

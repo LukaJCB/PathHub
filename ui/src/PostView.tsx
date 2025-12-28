@@ -8,7 +8,7 @@ import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8To
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { commentPost, likePost, unlikePost } from "pathhub-client/src/postInteraction.js";
 import { decodeComments, decodeLikes, decodeRoute } from "pathhub-client/src/codec/decode.js";
-import { getPage } from "./ProfileView";
+import { getPageForUser } from "pathhub-client/src/profile.js";
 import { decodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import MapLibreRouteMap from "./MapLibreView";
 
@@ -19,6 +19,9 @@ export const PostView = () => {
     const params = useParams()
     const storageId = params.storageId
     const page = parseInt(params.page!)
+    const profileUserId = params.userId!
+    const rs = createRemoteStore(createContentClient("/storage", user.token))
+    const [canView, setCanView] = useState(true)
     const [post, setPost] = useState<PostMeta | null>(null)
     const [postManifestPage, setPostManifestPage] = useState<[PostManifestPage, StorageIdentifier] | null>(null)
     const [imageUrls, setImageUrls] = useState<string[]>([])
@@ -31,44 +34,51 @@ export const PostView = () => {
     useEffect(() => {
         if (!storageId) throw new Error("no storage id")
         const fetchData = async () => {
-            const ls = await makeStore(user.id)
-            const rs = await createRemoteStore(createContentClient("/storage", user.token))
 
-            const currentPage = await getPage(user.currentPage, user.postManifest, page, user.token)
-            setPostManifestPage(currentPage)
+            const result = await getPageForUser(user.manifest, user.currentPage, user.postManifest, user.masterKey,
+                user.id, profileUserId, page, rs, 
+                await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"))
+            )
 
-            const p = currentPage[0].posts.find(pm => pm.main[0] === storageId)
-            setPost(p!)
+            if (!result) {
+                setCanView(false)
+            } else {
+                const currentPage = result
+                setPostManifestPage(currentPage)
 
-            const l = p?.likes
-            const c = p?.comments
+                const p = currentPage[0].posts.find(pm => pm.main[0] === storageId)
+                setPost(p!)
 
-            const media = p!.media.map(m => retrieveAndDecryptContent(rs, m))
+                const l = p?.likes
+                const c = p?.comments
 
-            const [fetchedPost, likes, comments, ...fetchedMedia] = await Promise.all([
-                retrieveAndDecryptContent(rs, p!.main),
-                l ? retrieveAndDecryptContent(rs, l) : Promise.resolve(undefined),
-                c ? retrieveAndDecryptContent(rs, c) : Promise.resolve(undefined),
-                ...media
-            ])
+                const media = p!.media.map(m => retrieveAndDecryptContent(rs, m))
 
-            const urls = fetchedMedia.map((i) => {
-                const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i))
-                const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
-                return URL.createObjectURL(blob);
-            });
+                const [fetchedPost, likes, comments, ...fetchedMedia] = await Promise.all([
+                    retrieveAndDecryptContent(rs, p!.main),
+                    l ? retrieveAndDecryptContent(rs, l) : Promise.resolve(undefined),
+                    c ? retrieveAndDecryptContent(rs, c) : Promise.resolve(undefined),
+                    ...media
+                ])
 
-            setImageUrls(urls)
+                const urls = fetchedMedia.map((i) => {
+                    const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i))
+                    const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType });
+                    return URL.createObjectURL(blob);
+                });
 
-            setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
-            if (comments) setComments(decodeComments(new Uint8Array(comments)))
+                setImageUrls(urls)
 
-            if (likes) {
-                const ls = decodeLikes(new Uint8Array(likes))
-                setUserHasLiked(ls.some(l => l.author === user.id))
+                setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
+                if (comments) setComments(decodeComments(new Uint8Array(comments)))
+
+                if (likes) {
+                    const ls = decodeLikes(new Uint8Array(likes))
+                    setUserHasLiked(ls.some(l => l.author === user.id))
+                }
+                
+                setLikes(p!.totalLikes)
             }
-            
-            setLikes(p!.totalLikes)
            
         }
         fetchData()
@@ -80,12 +90,11 @@ export const PostView = () => {
 
     async function addComment(e: FormEvent) {
         e.preventDefault()
+        const isOwnPost = profileUserId === user.id
 
-        
-        const rs = await createRemoteStore(createContentClient("/storage", user.token))
         const {newManifest, comment} = await commentPost(commentText, post!, 
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
-             user.ownGroupState, true, user.id, rs, 
+             user.ownGroupState, isOwnPost, user.id, rs, 
              postManifestPage![0], 
              postManifestPage![1],
              user.postManifest,
@@ -106,12 +115,13 @@ export const PostView = () => {
     }
 
     async function addLike() {
-        const rs = await createRemoteStore(createContentClient("/storage", user.token))
+
+        const isOwnPost = profileUserId === user.id
         setLikes(likes + 1)
         setUserHasLiked(true)
         const {newManifest, like} = await likePost(post!, 
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
-             user.ownGroupState, true, user.id, rs, 
+             user.ownGroupState, isOwnPost, user.id, rs, 
              postManifestPage![0], 
              postManifestPage![1],
              user.postManifest,
@@ -129,12 +139,12 @@ export const PostView = () => {
     }
 
     async function removeLike() {
-        const rs = await createRemoteStore(createContentClient("/storage", user.token))
+        const isOwnPost = profileUserId === user.id
 
         setLikes(likes - 1)
         setUserHasLiked(false)
         const {newManifest} = await unlikePost(post!, 
-             user.ownGroupState, true, user.id, rs, 
+             user.ownGroupState, isOwnPost, user.id, rs, 
              postManifestPage![0], 
              postManifestPage![1],
              user.postManifest,
@@ -152,6 +162,12 @@ export const PostView = () => {
         }
     }
 
+    if (!canView) {
+        return (<div> 
+            <h3>Follow this user to see their profile</h3>
+            <button>Request to Follow</button>
+        </div>)
+    }
     
     return (<>
         {post ? <><h2>{post.title}</h2>

@@ -18,6 +18,7 @@
   "dependencies": {
     "@noble/curves": "2.0.1",
     "@noble/hashes": "2.0.1",
+    "@tailwindcss/vite": "^4.1.18",
     "@types/papaparse": "^5.5.1",
     "@zip.js/zip.js": "^2.8.11",
     "cbor-x": "1.6.0",
@@ -30,7 +31,8 @@
     "react-dom": "19.2.0",
     "react-leaflet": "^5.0.0",
     "react-router": "^7.9.6",
-    "ts-mls": "1.4.3"
+    "tailwindcss": "^4.1.18",
+    "ts-mls": "1.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

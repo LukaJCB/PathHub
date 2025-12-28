@@ -1,4 +1,31 @@
-import { StorageIdentifier } from "./manifest"
-import { RemoteStore } from "./remoteStore"
+import { CiphersuiteImpl } from "ts-mls"
+import { Manifest, PostManifestPage, PostMeta } from "./manifest"
+import { RemoteStore, retrieveAndDecryptFollowerPostManifest, retrieveAndDecryptGroupState, uint8ToBase64Url } from "./remoteStore"
+import { getGroupStateIdFromManifest } from "./init"
 
-export async function getTimeline(store: RemoteStore) {}
+export interface TimelineItem {
+    post: PostMeta,
+    userId: string, 
+    page: number
+}
+
+export async function getTimeline(manifest: Manifest, 
+    userId: string,
+    currentPage: PostManifestPage,
+    masterKey: Uint8Array,
+    rs: RemoteStore, impl: CiphersuiteImpl): Promise<TimelineItem[]> {
+
+    const pages = currentPage.posts.map(post => ({post, userId, page: 0 }))
+
+    //todo parallelize this
+    for (const [userId, followerManifest] of manifest.followerManifests.entries()) {
+        const groupStateId = await getGroupStateIdFromManifest(manifest, userId)
+        const groupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
+        const [, , pmp] = await retrieveAndDecryptFollowerPostManifest(rs, groupState!, impl, followerManifest, masterKey)
+        
+        pages.push(...pmp.posts.map(post => ({post, userId, page: 0 })))
+    }
+
+    return pages.sort((a, b) => a.post.date - b.post.date)
+
+}

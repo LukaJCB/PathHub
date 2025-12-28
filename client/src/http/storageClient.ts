@@ -44,7 +44,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       headers,
       body: encode(objectIds) as BufferSource,
     })
-
+ 
     if (res.status === 200) {
       const arrayBuffer = await res.arrayBuffer()
       return decode(new Uint8Array(arrayBuffer)) as Record<string, { body: Uint8Array; nonce: string }>
