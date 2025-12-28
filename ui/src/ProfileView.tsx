@@ -37,37 +37,89 @@ export const ProfileView: React.FC = () => {
     }, [params])
 
     
-    //todo don't just blindly use user here
-    return (<>
-        <h1>{user.name}</h1>
-        
-        {canView ? (<>
-        <div>
-            <h2>Totals</h2>
-            <div>Total Posts: {user.postManifest.totals.totalPosts}</div>
-            <div>Total Duration: {user.postManifest.totals.totalDerivedMetrics.duration / 3600000} hours</div>
-            <div>Total Elevation: {user.postManifest.totals.totalDerivedMetrics.elevation} meters</div>
-            <div>Total Distance: {user.postManifest.totals.totalDerivedMetrics.distance / 1000} kilometers</div>
-            <div><Link to="/followers">Followers: {getAllFollowers(user.ownGroupState).length}</Link></div>
-            <div><Link to="/following">Following: {getAllFollowees(user.manifest).length}</Link></div>
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+                    <h1 className="text-4xl font-bold text-gray-900 mb-6">{user.name}</h1>
+                    
+                    {canView ? (
+                        <>
+                            <div className="mb-8">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">Statistics</h2>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                                        <div className="text-sm text-gray-600 mb-1">Total Posts</div>
+                                        <div className="text-3xl font-bold text-blue-600">{user.postManifest.totals.totalPosts}</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                                        <div className="text-sm text-gray-600 mb-1">Total Distance</div>
+                                        <div className="text-3xl font-bold text-purple-600">{(user.postManifest.totals.totalDerivedMetrics.distance / 1000).toFixed(0)}</div>
+                                        <div className="text-xs text-gray-500">km</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                                        <div className="text-sm text-gray-600 mb-1">Total Elevation</div>
+                                        <div className="text-3xl font-bold text-green-600">{Math.round(user.postManifest.totals.totalDerivedMetrics.elevation)}</div>
+                                        <div className="text-xs text-gray-500">m</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                                        <div className="text-sm text-gray-600 mb-1">Total Duration</div>
+                                        <div className="text-3xl font-bold text-orange-600">{(user.postManifest.totals.totalDerivedMetrics.duration / 3600000).toFixed(0)}</div>
+                                        <div className="text-xs text-gray-500">hours</div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Link to="/followers" className="bg-gradient-to-br from-pink-50 to-pink-100 p-4 rounded-lg border border-pink-200 text-center hover:shadow-md transition">
+                                            <div className="text-sm text-gray-600 mb-1">Followers</div>
+                                            <div className="text-3xl font-bold text-pink-600">{getAllFollowers(user.ownGroupState).length}</div>
+                                        </Link>
+                                        <Link to="/following" className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-4 rounded-lg border border-cyan-200 text-center hover:shadow-md transition">
+                                            <div className="text-sm text-gray-600 mb-1">Following</div>
+                                            <div className="text-3xl font-bold text-cyan-600">{getAllFollowees(user.manifest).length}</div>
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-6">Activities</h2>
+                                {postManifestPage && postManifestPage.posts.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                        {postManifestPage.posts.map(post =>
+                                            <PostPreview post={post} userId={profileUserId} page={page} token={user.token} key={post.main[0]}/>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500 text-center py-8">No activities yet</p>
+                                )}
+
+                                {/* Pagination */}
+                                <div className="flex items-center justify-center gap-4 mt-8">
+                                    {page > 0 && 
+                                        <Link to={`/user/${profileUserId}/${page - 1}`} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                                            ← Previous
+                                        </Link>
+                                    }
+                                    <span className="text-gray-600 text-sm">Page {page + 1} of {user.currentPage.pageIndex + 1}</span>
+                                    {page < user.currentPage.pageIndex && 
+                                        <Link to={`/user/${profileUserId}/${page + 1}`} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                                            Next →
+                                        </Link>
+                                    }
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-8 text-center">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-4">🔒 Profile Private</h3>
+                            <p className="text-gray-600 mb-6">You need to follow this user to see their activities.</p>
+                            <Link to="/followRequests" className="inline-block px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                                Send Follow Request
+                            </Link>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
-        {postManifestPage && (<>{postManifestPage.posts.map(post =>
-            <PostPreview post={post} userId={profileUserId} page={page} token={user.token} key={post.main[0]}/>
-        )}</>)}
-        {page > 0 ? 
-          <Link to={`/user/${profileUserId}/${page - 1}`} > {"<"} </Link> 
-          : <></>
-        }
-        {page < user.currentPage.pageIndex ? 
-          <Link to={`/user/${profileUserId}/${page + 1}`} > {">"} </Link> 
-          : <></>
-        }</>) : 
-        (<div> 
-            <h3>Follow this user to see their profile</h3>
-            <button>Request to Follow</button>
-        </div>)}
-        
-        </>
     )
 }
 

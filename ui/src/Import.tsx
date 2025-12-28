@@ -13,6 +13,7 @@ import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { encodeRoute } from "pathhub-client/src/codec/encode.js";
 import { decodeBlobWithMime, encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import { ThumbnailRenderer } from "./ThumbnailRenderer";
+import { Link } from "react-router";
 
 export interface ActivityRecord {
   "Activity Count": string;
@@ -118,7 +119,7 @@ export interface ActivityRecord {
 
 
 
-export function ZipExtractor() {
+export function BulkImport() {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0)
   const {user, updateUser} = useAuthRequired()
@@ -154,13 +155,13 @@ export function ZipExtractor() {
         } else return acc} ,{})
 
     const ls = await makeStore(user.id)
-    const rs = await createRemoteStore(createContentClient("/storage", user.token))
+    const rs = createRemoteStore(createContentClient("/storage", user.token))
     const thumbRenderer = new ThumbnailRenderer()
     let currentPage = user.currentPage
     let currentPostManifest = user.postManifest
     let currentManifest = user.manifest
     let currentGroup = user.ownGroupState
-    for (const [n, record] of result.slice(0, 40).entries()) {
+    for (const [n, record] of result.slice(0, 4).entries()) {
         
         if (!record.Filename || record.Filename === "#error#") {
             continue;
@@ -239,9 +240,63 @@ export function ZipExtractor() {
   };
 
   return (
-    <div>
-      <input type="file" accept=".zip" onChange={handleFile} />
-      <p>Progress: {progress} out of {total}</p>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Bulk Import Activities</h2>
+          
+          <div className="mb-8">
+            <p className="text-gray-600 mb-4">Import multiple activities at once from a Strava export ZIP file.</p>
+            
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors">
+              <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20m-14-6l-4-4m0 0l-4 4m4-4v12m10-8h6m-6 4h6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-gray-700 mb-4">Drop your Strava export ZIP file here or click to select</p>
+              <input 
+                type="file" 
+                accept=".zip" 
+                onChange={handleFile}
+                className="hidden"
+                id="zipInput"
+              />
+              <label 
+                htmlFor="zipInput"
+                className="inline-block px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg cursor-pointer transition-colors"
+              >
+                Browse Files
+              </label>
+            </div>
+          </div>
+
+          {total > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Import Progress</h3>
+              
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Processing activities...</span>
+                  <span className="text-sm font-bold text-blue-600">{progress} / {total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-full transition-all duration-300 ease-out"
+                    style={{ width: `${(progress / total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {progress === total && total > 0 && (
+                
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <Link to={`/user/${user.id}/0`}><p className="text-green-700 font-semibold">✓ Successfully imported {total} activities!</p></Link>
+                </div>
+                
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

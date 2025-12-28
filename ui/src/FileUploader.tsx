@@ -5,7 +5,7 @@ import { makeStore } from 'pathhub-client/src/indexedDbStore.js';
 import { encodeRoute } from 'pathhub-client/src/codec/encode.js';
 import { MessageClient } from 'pathhub-client/src/http/messageClient.js';
 import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { base64urlToUint8, createRemoteStore } from 'pathhub-client/src/remoteStore.js';
 import {decodeBlobWithMime, encodeBlobWithMime} from "pathhub-client/src/imageEncoding.js"
 import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
@@ -168,94 +168,148 @@ const FileUpload: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2>Upload a .gpx</h2>
-      <label>Title: </label>
-        <input
-          type="text" 
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      
-      <div
-        onDrop={handleDropGpx}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        style={{
-          border: '2px dashed #ccc',
-          padding: '2rem',
-          marginBottom: '1rem',
-          textAlign: 'center',
-          backgroundColor: isDragging ? '#f0f8ff' : '#fafafa',
-          transition: 'background-color 0.2s ease',
-        }}
-      >
-
-        {isDragging ? 'Drop the .gpx file here...' : 'Drag & drop a .gpx file here or click to select'}
-        <input
-          type="file"
-          accept=".gpx"
-          onChange={handleInputChangeGpx}
-          style={{ display: 'none' }}
-          id="fileInputGpx"
-        />
-        <label htmlFor="fileInputGpx" style={{ display: 'block', marginTop: '1rem', cursor: 'pointer', color: '#007bff' }}>
-          Browse Files
-        </label>
-      </div>
-      <div 
-        onDrop={handleDropMedia}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        style={{
-          border: '2px dashed #ccc',
-          padding: '2rem',
-          marginBottom: '1rem',
-          textAlign: 'center',
-          backgroundColor: isDragging ? '#f0f8ff' : '#fafafa',
-          transition: 'background-color 0.2s ease',
-        }}>
-        {isDragging ? 'Drop media files here...' : 'Drag & drop media files here or click to select'}
-        <input
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={handleInputChangeMedia}
-          style={{ display: 'none' }}
-          id="fileInputMedia"
-        />
-        <label htmlFor="fileInputMedia" style={{ display: 'block', marginTop: '1rem', cursor: 'pointer', color: '#007bff' }}>
-          Browse Files
-        </label>
-      </div>
-      {gpxData && (
-        <div>
-          <h3>Activity Preview</h3>
-            <div ref={ref}>
-              <MapLibreRouteMap route={gpxData.coords} showMarkers/>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900">Upload an Activity</h2>
+              <p className="text-gray-600 mt-1">Share your single activity with details and photos</p>
             </div>
-            <div>Duration: {gpxData.totalDuration / 3600000} hours</div>
-            <div>Elevation: {gpxData.totalElevation} meters</div>
-            <div>Distance: {gpxData.totalDistance / 1000} kilometers</div>
-        </div>
-      )}
-
-      {imageUrls && (
-        <div>
-          <h3>Image Preview:</h3>
-          <ul>
-            {imageUrls.map((url, idx) => (
-              <li key={idx}>
-                <img src={url} style={{ maxWidth: '300px' }} />
-              </li>
-            ))}
-          </ul>
+            <Link 
+              to="/bulkImport"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors whitespace-nowrap"
+            >
+              Bulk Import
+            </Link>
+          </div>
           
-        </div>
-      )}
+          <div className="mb-8">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Activity Title
+            </label>
+            <input
+              type="text" 
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Morning Trail Run"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            />
+          </div>
+          
+          <div className="space-y-6">
+            {/* GPX Upload */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">1. Upload GPX File</h3>
+              <div
+                onDrop={handleDropGpx}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragging 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20m-14-6l-4-4m0 0l-4 4m4-4v12m10-8h6m-6 4h6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="mt-2 text-gray-700">
+                  {isDragging ? '📍 Drop your GPX file here' : 'Drag & drop your .gpx file or'}
+                </p>
+                <input
+                  type="file"
+                  accept=".gpx"
+                  onChange={handleInputChangeGpx}
+                  className="hidden"
+                  id="fileInputGpx"
+                />
+                <label htmlFor="fileInputGpx" className="inline-block mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg cursor-pointer transition-colors">
+                  Browse Files
+                </label>
+              </div>
+            </div>
 
-      <button onClick={handleUpload} disabled={!selectedFile}>
-        Upload
-      </button>
+            {/* Media Upload */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Upload Photos (Optional)</h3>
+              <div 
+                onDrop={handleDropMedia}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragging 
+                    ? 'border-green-500 bg-green-50' 
+                    : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20m0-12h.01M17 29l4-4 6 6 8-8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="mt-2 text-gray-700">
+                  {isDragging ? '🖼️ Drop your photos here' : 'Drag & drop photos or'}
+                </p>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={handleInputChangeMedia}
+                  className="hidden"
+                  id="fileInputMedia"
+                />
+                <label htmlFor="fileInputMedia" className="inline-block mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg cursor-pointer transition-colors">
+                  Browse Files
+                </label>
+              </div>
+            </div>
+
+            {/* Preview Section */}
+            {gpxData && (
+              <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Preview</h3>
+                <div ref={ref} className="mb-4 rounded-lg overflow-hidden border border-gray-200">
+                  <MapLibreRouteMap route={gpxData.coords} showMarkers/>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Duration</div>
+                    <div className="text-2xl font-bold text-blue-600">{(gpxData.totalDuration / 3600000).toFixed(1)} hrs</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Elevation</div>
+                    <div className="text-2xl font-bold text-green-600">{Math.round(gpxData.totalElevation)} m</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Distance</div>
+                    <div className="text-2xl font-bold text-purple-600">{(gpxData.totalDistance / 1000).toFixed(1)} km</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {imageUrls.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Photos ({imageUrls.length})</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {imageUrls.map((url, idx) => (
+                    <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition">
+                      <img src={url} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upload Button */}
+            <button 
+              onClick={handleUpload} 
+              disabled={!selectedFile}
+              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              {selectedFile ? 'Upload Activity' : 'Select a GPX file to continue'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

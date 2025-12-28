@@ -10,6 +10,9 @@ pnpm install
 pnpm start
 ```
 
+
+Additonally once the docker container for `storage` is up and running you will need to log into the minioadmin console to create a bucket.
+
 For `authentication` you will need to generate keys like so:
 
 

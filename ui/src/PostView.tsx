@@ -163,45 +163,143 @@ export const PostView = () => {
     }
 
     if (!canView) {
-        return (<div> 
-            <h3>Follow this user to see their profile</h3>
-            <button>Request to Follow</button>
-        </div>)
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+                <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full text-center">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4">🔒 Profile Private</h3>
+                    <p className="text-gray-600 mb-6">You need to follow this user to see their posts.</p>
+                </div>
+            </div>
+        )
     }
     
-    return (<>
-        {post ? <><h2>{post.title}</h2>
-        <div> {likes} likes</div>
-        <div> {comments.length} comments</div>
-        <div> {new Date(post.date).toUTCString()}</div>
-        <div>Duration: {post.metrics.duration / 3600000} hours</div>
-        <div>Elevation: {post.metrics.elevation} meters</div>
-        <div>Distance: {post.metrics.distance / 1000} kilometers</div>
-        </> : <></>}
-        {gpxData ? <MapLibreRouteMap route={gpxData} showMarkers/> : <></>}
-        {imageUrls && (
-        <div>
-          <h3>Media</h3>
-          <ul>
-            {imageUrls.map((url, idx) => (
-              <li key={idx}>
-                <img src={url} style={{ maxWidth: '300px' }} />
-              </li>
-            ))}
-          </ul>
-          
-        </div>
-      )}
-        {userHasLiked ? <button onClick={removeLike}>Unlike</button> : <button onClick={addLike}>Like</button>}
-        <ul>
-            {comments.map(c => 
-            <li key={uint8ToBase64Url(c.signature)}>{c.author} says: {c.text}</li>)}
-        </ul>
-        <form onSubmit={addComment}><textarea value={commentText} onChange={(e) => setCommentText(e.target.value)}></textarea>
-        <input type="submit" value={"Add Comment"} />
-        </form>
+    return (
+        <div className="min-h-screen bg-gray-50 py-8 px-4">
+            <div className="max-w-4xl mx-auto">
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                    {/* Post Header */}
+                    {post && (
+                        <div className="p-8 border-b border-gray-200">
+                            <h2 className="text-3xl font-bold text-gray-900 mb-4">{post.title}</h2>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                    <div className="text-xs text-gray-600 mb-1">Distance</div>
+                                    <div className="text-lg font-bold text-blue-600">{(post.metrics.distance / 1000).toFixed(1)} km</div>
+                                </div>
+                                <div className="bg-green-50 p-3 rounded-lg">
+                                    <div className="text-xs text-gray-600 mb-1">Elevation</div>
+                                    <div className="text-lg font-bold text-green-600">{Math.round(post.metrics.elevation)} m</div>
+                                </div>
+                                <div className="bg-purple-50 p-3 rounded-lg">
+                                    <div className="text-xs text-gray-600 mb-1">Duration</div>
+                                    <div className="text-lg font-bold text-purple-600">{(post.metrics.duration / 3600000).toFixed(1)} h</div>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="text-xs text-gray-600 mb-1">Date</div>
+                                    <div className="text-lg font-bold text-gray-600">{new Date(post.date).toLocaleDateString('en-US', { 
+                                        year: 'numeric', 
+                                        month: 'short', 
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}</div>
+                                </div>
+                            </div>
 
-        </>
+                            <div className="flex items-center gap-6 text-sm text-gray-600">
+                                <span className="flex items-center gap-1">
+                                    <span>👍</span>
+                                    <span className="font-semibold">{likes}</span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span>💬</span>
+                                    <span className="font-semibold">{comments.length}</span>
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Map */}
+                    {gpxData && (
+                        <div className="relative w-full h-96 bg-gray-200 border-b border-gray-200 overflow-hidden">
+                            <MapLibreRouteMap route={gpxData} showMarkers/>
+                        </div>
+                    )}
+
+                    {/* Media Gallery */}
+                    {imageUrls && imageUrls.length > 0 && (
+                        <div className="p-8 border-b border-gray-200">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">📸 Photos</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {imageUrls.map((url, idx) => (
+                                    <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition">
+                                        <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Like Button */}
+                    <div className="p-8 border-b border-gray-200">
+                        {userHasLiked ? (
+                            <button 
+                                onClick={removeLike}
+                                className="w-full px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-lg transition-colors border border-red-200"
+                            >
+                                👍 Unlike
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={addLike}
+                                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                            >
+                                👍 Like
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Comments Section */}
+                    <div className="p-8">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Comments</h3>
+                        
+                        {comments.length > 0 ? (
+                            <div className="space-y-4 mb-8">
+                                {comments.map(c => (
+                                    <div key={uint8ToBase64Url(c.signature)} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        <div className="font-semibold text-gray-900">{c.author}</div>
+                                        <p className="text-gray-600 mt-1">{c.text}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 text-center py-4 mb-8">No comments yet</p>
+                        )}
+
+                        {/* Add Comment Form */}
+                        <div className="border-t border-gray-200 pt-6">
+                            <h4 className="text-md font-semibold text-gray-900 mb-4">Add a Comment</h4>
+                            <form onSubmit={addComment} className="space-y-3">
+                                <textarea 
+                                    value={commentText} 
+                                    onChange={(e) => setCommentText(e.target.value)}
+                                    placeholder="Share your thoughts..."
+                                    rows={4}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
+                                />
+                                <button 
+                                    type="submit" 
+                                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                                >
+                                    Post Comment
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     )
 }
 
