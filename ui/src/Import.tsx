@@ -123,11 +123,39 @@ export function BulkImport() {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0)
   const {user, updateUser} = useAuthRequired()
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDropZip = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return;
+    await processZip(file)
+  }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    await processZip(file)
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  
+
+  async function processZip(file: File) {
     // Open the zip
     const zipReader = new ZipReader(new BlobReader(file));
     const entries = await zipReader.getEntries();
@@ -237,7 +265,7 @@ export function BulkImport() {
     setProgress(result.length)
 
     await zipReader.close();
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -248,7 +276,16 @@ export function BulkImport() {
           <div className="mb-8">
             <p className="text-gray-600 mb-4">Import multiple activities at once from a Strava export ZIP file.</p>
             
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors">
+            <div 
+              onDrop={handleDropZip}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors ${
+                  isDragging 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                }`}
+              >
               <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                 <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20m-14-6l-4-4m0 0l-4 4m4-4v12m10-8h6m-6 4h6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>

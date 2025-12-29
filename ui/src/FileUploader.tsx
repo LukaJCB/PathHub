@@ -52,13 +52,12 @@ const FileUpload: React.FC = () => {
 
   const processGpxFile = (file: File) => {
     setSelectedFile(file);
-    const fileType = file.type;
     const reader = new FileReader();
 
     if (file.name.endsWith('.gpx')) {
       reader.onload = () => {
         const text = reader.result as string;
-        const { trackpoints, totalDistance, totalElevationGain, coords, totalDuration } = parseTrackData(text, minimumDistanceThreshold, minimumGainThreshold)!;
+        const { totalDistance, totalElevationGain, coords, totalDuration } = parseTrackData(text, minimumDistanceThreshold, minimumGainThreshold)!;
 
         setGpxData({ coords: coords, totalDuration, totalDistance, totalElevation: totalElevationGain});
 
