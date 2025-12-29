@@ -35,12 +35,20 @@ function App() {
               <h1 className="text-3xl font-bold text-gray-900">Feed</h1>
               <p className="text-gray-600 mt-1">Latest activities from people you follow</p>
             </div>
-            <Link 
-              to="/upload" 
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              + Upload Activity
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/followRequests"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                Follow Requests
+              </Link>
+              <Link
+                to="/upload"
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                + Upload Activity
+              </Link>
+            </div>
           </div>
         </div>
 

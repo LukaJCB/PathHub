@@ -19,6 +19,12 @@ export function Layout() {
               {user && (
                 <>
                   <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}/0`}><span className="font-semibold">{user.name}</span></Link></span>
+                  <Link
+                    to="/followRequests"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Follow Requests
+                  </Link>
                   <button 
                     onClick={logout}
                     className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
