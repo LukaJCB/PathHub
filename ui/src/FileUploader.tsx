@@ -159,8 +159,6 @@ const FileUpload: React.FC = () => {
       user.masterKey
     )
 
-    console.log(user.currentPage, user.postManifest, user.manifest)
-
     updateUser({currentPage: newPostManifestPage, postManifest: newPostManifest, manifest: newManifest, ownGroupState: newGroup})
 
     nav("/")

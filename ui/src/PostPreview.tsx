@@ -11,9 +11,10 @@ type Props = {
     page: number,
     token: string,
     avatarUrl?: string
+    username?: string
 }
 
-export const PostPreview: React.FC<Props> = ({post, userId, page, token, avatarUrl}) => {
+export const PostPreview: React.FC<Props> = ({post, userId, username, page, token, avatarUrl}) => {
 
     const [thumb, setThumb] = useState<string | null>(null)
     const rs = createRemoteStore(createContentClient("/storage", token))
@@ -72,7 +73,7 @@ export const PostPreview: React.FC<Props> = ({post, userId, page, token, avatarU
                                     {userId?.slice(0,2).toUpperCase()}
                                 </div>
                             )}
-                            <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{userId}</span></p>
+                            <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{username ?? userId}</span></p>
                         </div>
                     </Link>
 

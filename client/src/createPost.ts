@@ -11,7 +11,7 @@ import { base64urlToUint8, RemoteStore } from "./remoteStore"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
 import { encodePostManifestPage, encodeManifest, encodePostManifest } from "./codec/encode"
 
-export const postLimit = 20
+export const postLimit = 10
 
 export async function createPost(
   content: Uint8Array,
@@ -359,13 +359,11 @@ export async function deriveAccessAndEncryptionKeys(postSecret: Uint8Array) {
 
 export async function derivePostSecret(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<Uint8Array> {
   return await mlsExporter(mlsGroup.keySchedule.exporterSecret, "data encryption key", new Uint8Array(), 32, impl)
-
-  
 }
 
 function compareUint8Arrays(arr1: Uint8Array, arr2: Uint8Array): boolean {
     if (arr1.length !== arr2.length) {
-        return false; 
+        return false;
     }
 
     for (let i = 0; i < arr1.length; i++) {

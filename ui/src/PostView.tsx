@@ -12,6 +12,8 @@ import { getPageForUser } from "pathhub-client/src/profile.js";
 import { decodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import MapLibreRouteMap from "./MapLibreView";
 import { getAvatarImageUrl } from "./App";
+import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
+import { getUserInfo } from "pathhub-client/src/userInfo.js";
 
 
 export const PostView = () => {
@@ -32,6 +34,7 @@ export const PostView = () => {
     const [gpxData, setGpxData] = useState<[number, number, number][] | null>(null)
     const [commentText, setCommentText] = useState("")
     const [avatar, setAvatar] = useState<string | null>(null)
+    const [username, setUsername] = useState<string | null>(null)
     
     useEffect(() => {
         if (!storageId) throw new Error("no storage id")
@@ -80,8 +83,11 @@ export const PostView = () => {
                 }
                 
                 setLikes(p!.totalLikes)
-                const avatar = profileUserId === user.id ? user.avatarUrl : await getAvatarImageUrl(profileUserId, rs.client)
-                setAvatar(avatar)
+                const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
+                const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
+                const username = profileUserId === user.id ? user.name : userInfo.info.username
+                if (avatar) { setAvatar(avatar) }
+                if (username) { setUsername(username)}
             }
            
         }
@@ -198,10 +204,10 @@ export const PostView = () => {
                                     />
                                 ) : (
                                     <div className="w-9 h-9 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-semibold">
-                                        {profileUserId.slice(0,2).toUpperCase()}
+                                        {username ? username.slice(0, 2).toUpperCase() : profileUserId.slice(0, 2).toUpperCase()}
                                     </div>
                                 )}
-                                <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{profileUserId}</span></p>
+                                <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{username}</span></p>
                             </Link>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div className="bg-blue-50 p-3 rounded-lg">

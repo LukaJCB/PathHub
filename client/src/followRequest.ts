@@ -218,9 +218,6 @@ export async function processAllowFollow(
 
   const followerManifest = decodeFollowerManifest(followerManifestExtension.extensionData)
 
-  console.log("Receiving follower mani")
-  console.log(followerManifest)
-
   const followerManifestStorageId = crypto.getRandomValues(new Uint8Array(32))
 
   const newFollowerManifests: Map<string, Uint8Array> = 

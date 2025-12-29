@@ -9,6 +9,8 @@ import { getPageForUser } from "pathhub-client/src/profile.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl} from "ts-mls";
 import { PostPreview } from "./PostPreview";
 import { getAvatarImageUrl } from "./App";
+import { getUserInfo } from "pathhub-client/src/userInfo.js";
+import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 
 
 export const ProfileView: React.FC = () => {
@@ -20,6 +22,7 @@ export const ProfileView: React.FC = () => {
     const [postManifestPage, setPostManifestPage] = useState<PostManifestPage | null>(null)
     const [canView, setCanView] = useState(true)
     const [avatar, setAvatar] = useState<string | null>(null)
+    const [username, setUsername] = useState<string | null>(null)
     const rs = createRemoteStore(createContentClient("/storage", user.token))
     useEffect(() => {
         const fetchData = async () => {
@@ -32,8 +35,11 @@ export const ProfileView: React.FC = () => {
                 setCanView(false)
             } else {
                 setPostManifestPage(result[0])
-                const avatar = profileUserId === user.id ? user.avatarUrl : await getAvatarImageUrl(profileUserId, rs.client)
+                const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
+                const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
+                const username = profileUserId === user.id ? user.name : userInfo.info.username
                 if (avatar) { setAvatar(avatar) }
+                if (username) { setUsername(username)}
             }
         }
 
@@ -62,7 +68,7 @@ export const ProfileView: React.FC = () => {
                                 Edit
                             </span>
                         </Link>
-                        <h1 className="text-4xl font-bold text-gray-900">{user.name}</h1>
+                        <h1 className="text-4xl font-bold text-gray-900">{username}</h1>
                     </div>
                     
                     {canView ? (
@@ -107,7 +113,7 @@ export const ProfileView: React.FC = () => {
                                 {postManifestPage && postManifestPage.posts.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                                         {postManifestPage.posts.map(post =>
-                                            <PostPreview post={post} userId={profileUserId} page={page} token={user.token} avatarUrl={avatar} key={post.main[0]}/>
+                                            <PostPreview post={post} userId={profileUserId} username={username} page={page} token={user.token} avatarUrl={avatar} key={post.main[0]}/>
                                         )}
                                     </div>
                                 ) : (

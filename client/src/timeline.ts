@@ -26,6 +26,6 @@ export async function getTimeline(manifest: Manifest,
         pages.push(...pmp.posts.map(post => ({post, userId, page: 0 })))
     }
 
-    return pages.sort((a, b) => a.post.date - b.post.date)
+    return pages.sort((a, b) => b.post.date - a.post.date)
 
 }

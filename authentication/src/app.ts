@@ -3,7 +3,7 @@ import { decode, encode } from "cbor-x"
 import helmet from "@fastify/helmet"
 import postgres from "@fastify/postgres"
 import * as opaque from "@serenity-kit/opaque"
-import { JWK, SignJWT, exportJWK } from "jose"
+import { JWK, SignJWT, exportJWK, jwtVerify } from "jose"
 
 interface StartRegistrationBody {
   username: string
@@ -305,6 +305,57 @@ export async function build(config: {
     }
   })
 
+  const getPublicUserInfoSchema = {
+    schema: {
+      body: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+      },
+      response: {
+        200: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              username: { type: "string" },
+              key: { type: "object" },
+              userid: { type: "string" }
+            },
+          },
+          minItems: 1
+        },
+        401: {
+          type: "object",
+        },
+        404: {
+          type: "object",
+        },
+      },
+    },
+  }
+
+  fastify.post<{ Body: string[] }>("/userInfo", getPublicUserInfoSchema, async (req, reply) => {
+    const user = await authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+
+    const result = await getPublicUserInfo(fastify, req.body)
+
+    if (result.length < 1) {
+      return reply.code(404).type("application/cbor").send()
+    } else {
+
+        return reply
+          .code(200)
+          .type("application/cbor")
+          .send(
+            encode(result),
+          )
+      
+    }
+  })
+
   const jwkSchema = {
     type: "object",
     required: ["kty", "crv", "x", "alg", "use", "kid"],
@@ -351,6 +402,26 @@ export async function build(config: {
     }
     reply.send({ keys: [withMeta] })
   })
+
+
+  type AuthenticateResult = { status: "ok"; userId: string; username: string } | { status: "error" }
+
+
+async function authenticate(auth: string | undefined): Promise<AuthenticateResult> {
+    if (!auth?.startsWith("Bearer ")) return { status: "error" }
+
+    try {
+      const { payload } = await jwtVerify(auth.slice(7), config.publicKey)
+      if (payload.sub === undefined || payload["ph-user"] === undefined || typeof payload["ph-user"] !== "string")
+        return { status: "error" }
+
+      return { status: "ok", userId: payload.sub, username: payload["ph-user"] }
+    } catch (e) {
+      console.log(e)
+      return { status: "error" }
+    }
+  }
+
 
   return fastify
 }
@@ -403,6 +474,27 @@ async function getUserInfo(
   }
 
   return res.rows.at(0)
+}
+
+
+async function getPublicUserInfo(
+  fastify: Fastify.FastifyInstance,
+  userIds: string[],
+): Promise<{ username: string; key: Buffer; userid: string }[]> {
+  const res = await fastify.pg.query<{ username: string; key: Buffer; userid: string }>(
+    `SELECT  
+      username,
+      signing_public_key as key,
+      user_id as userid
+    FROM users 
+    WHERE user_id = ANY($1::UUID[])`,
+    [userIds],
+  )
+  if (res.rows.length < 1) {
+    return []
+  }
+
+  return [...res.rows.values()]
 }
 
 type SaveUserResult = { status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }

@@ -6,6 +6,8 @@ import {getOrCreateManifest} from "pathhub-client/src/init.js"
 import { base64urlToUint8, createRemoteStore, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { getAvatarImageUrl } from "./App.js";
+import { getUserInfo } from "pathhub-client/src/userInfo.js";
+import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -92,8 +94,8 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
   const rs = createRemoteStore(createContentClient("/storage", token))
 
   const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
-  const avatarUrl = await getAvatarImageUrl(userId, rs.client)
-  console.log(avatarUrl)
+  const userInfo = await getUserInfo(userId, rs.client, createAuthenticationClient("/auth"), token)
+  const avatarUrl = getAvatarImageUrl(userInfo)
   
   return { userId, username, manifest, postManifest, page, groupState,keyPair , avatarUrl};
 }
