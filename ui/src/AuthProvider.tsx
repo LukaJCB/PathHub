@@ -5,6 +5,7 @@ import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import {getOrCreateManifest} from "pathhub-client/src/init.js"
 import { base64urlToUint8, createRemoteStore, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
+import { getAvatarImageUrl } from "./App.js";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -27,7 +28,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const { expires } = parseToken(token);
 
           if (expires * 1000 > Date.now()) {
-            const { userId, username, manifest, postManifest, page, groupState } =
+            const { userId, username, manifest, postManifest, page, groupState, avatarUrl } =
               await setupUserState(token, manifestId, masterKey);
 
             setUser({
@@ -39,7 +40,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               manifestId,
               ownGroupState: groupState,
               masterKey,
-              token
+              token,
+              avatarUrl
             });
           }
         }
@@ -56,9 +58,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("manifest_id", res.manifest)
     localStorage.setItem("master_key", uint8ToBase64Url(res.masterKey))
 
-    const { userId, manifest, postManifest, page, groupState } = await setupUserState(res.token, res.manifest, res.masterKey)
+    const { userId, manifest, postManifest, page, groupState, avatarUrl } = await setupUserState(res.token, res.manifest, res.masterKey)
 
-    setUser({id: userId, name: username, currentPage: page, postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey })
+    setUser({id: userId, name: username, currentPage: page, postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey, avatarUrl })
     
   }
 
@@ -86,11 +88,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 async function setupUserState(token: string, manifestId: string, masterKey: Uint8Array) {
   const {userId, username} = parseToken(token)
-    const ls = await makeStore(userId);
-    const rs = await createRemoteStore(createContentClient("/storage", token))
+  const ls = await makeStore(userId);
+  const rs = createRemoteStore(createContentClient("/storage", token))
 
-    const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
-
-    return { userId, username, manifest, postManifest, page, groupState,keyPair };
+  const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
+  const avatarUrl = await getAvatarImageUrl(userId, rs.client)
+  console.log(avatarUrl)
+  
+  return { userId, username, manifest, postManifest, page, groupState,keyPair , avatarUrl};
 }
 

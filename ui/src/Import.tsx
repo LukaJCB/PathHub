@@ -163,7 +163,8 @@ export function BulkImport() {
     setProgress(0);
 
     const activities = entries.find(e => e.filename === 'activities.csv')
-    if (!activities || activities.directory) return;
+    if (activities === undefined || activities.directory === true) return;
+
 
     const blob = await activities.getData(new BlobWriter("text/csv"))
     const text = await blob.text();
@@ -195,7 +196,7 @@ export function BulkImport() {
             continue;
         }
         const entry = activityMap[record.Filename]
-        if (entry.directory) throw new Error("No good")
+        if (entry.directory === true) throw new Error("No good")
 
         if (!entry.filename.endsWith(".gpx")) {
             continue;
@@ -212,7 +213,7 @@ export function BulkImport() {
             continue;
           }
           const e = mediaMap[url]
-          if (e.directory) throw new Error("Not good at all")
+          if (e.directory === true) throw new Error("Not good at all")
 
           const b = await e.getData(new BlobWriter("image/jpeg"))
           media.push(encodeBlobWithMime(await b.arrayBuffer(), "image/jpeg"))

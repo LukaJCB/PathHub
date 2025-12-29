@@ -1,9 +1,14 @@
 import { encode, decode } from "cbor-x"
+import { toBufferSource } from "ts-mls/util/byteArray.js";
 
 export interface StorageClient {
   putContent(objectId: string, body: Uint8Array, accessKey: Uint8Array, nonce: Uint8Array): Promise<void>
 
   batchGetContent(objectIds: [Uint8Array, Uint8Array][]): Promise<Record<string, { body: Uint8Array; nonce: string }>>
+
+  putAvatar(body: Uint8Array, contentType: "image/png" | "image/jpeg" | "image/svg+xml"): Promise<void>
+
+  getAvatar(userId: string): Promise<{ body: Uint8Array; contentType: string } | undefined>
 }
 
 export function createContentClient(baseUrl: string, authToken: string): StorageClient {
@@ -63,9 +68,70 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     throw new Error(`Unexpected status ${res.status} on batchGetContent`)
   }
 
+  async function putAvatar(body: Uint8Array, contentType: "image/png" | "image/jpeg" | "image/svg+xml"): Promise<void> {
+    const headers = {
+      "Content-Type": contentType,
+      Authorization: `Bearer ${authToken}`,
+    }
+
+    const res = await fetch(`${baseUrl}/avatar`, {
+      method: "PUT",
+      headers,
+      body: toBufferSource(body),
+    })
+
+    if (res.ok) {
+      return
+    }
+
+    if (res.status === 400) {
+      const errorBody = await res.arrayBuffer()
+      const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
+      throw new Error(errorDecoded.error)
+    }
+
+    if (res.status === 401) {
+      throw new Error("Unauthorized")
+    }
+
+    throw new Error(`Unexpected status ${res.status} on putAvatar`)
+  }
+
+  async function getAvatar(userId: string): Promise<{ body: Uint8Array; contentType: string } | undefined> {
+    const headers = {
+      Authorization: `Bearer ${authToken}`,
+    }
+
+    const res = await fetch(`${baseUrl}/avatar/${encodeURIComponent(userId)}`, {
+      method: "GET",
+      headers,
+    })
+
+    if (res.status === 200) {
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream"
+      const arrayBuffer = await res.arrayBuffer()
+      return {
+        body: new Uint8Array(arrayBuffer),
+        contentType,
+      }
+    }
+
+    if (res.status === 404) {
+      return undefined
+    }
+
+    if (res.status === 401) {
+      throw new Error("Unauthorized")
+    }
+
+    throw new Error(`Unexpected status ${res.status} on getAvatar`)
+  }
+
   return {
     putContent,
     batchGetContent,
+    putAvatar,
+    getAvatar,
   }
 }
 

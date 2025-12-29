@@ -59,6 +59,7 @@ describe("MinIO content upload and fetch", () => {
       minioAccessKeyId: MINIO_ACCESS_KEY,
       minioSecretAccessKey: MINIO_SECRET_KEY,
       bucketName: BUCKET_NAME,
+      bucketNamePublic: BUCKET_NAME,
       publicKey,
     })
   })
@@ -478,5 +479,118 @@ describe("MinIO content upload and fetch", () => {
     })
 
     expect(res.statusCode).toBe(401)
+  })
+
+  it("should upload and retrieve avatar with same content", async () => {
+    const image = Buffer.from([137, 80, 78, 71, 0, 1, 2, 3])
+
+    const putRes = await app.inject({
+      method: "PUT",
+      url: "/avatar",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "image/png",
+      },
+      payload: image,
+    })
+
+    expect(putRes.statusCode).toBe(204)
+
+    const getRes = await app.inject({
+      method: "GET",
+      url: `/avatar/${testUserId}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    })
+
+    expect(getRes.statusCode).toBe(200)
+    expect(Buffer.compare(getRes.rawPayload, image)).toBe(0)
+    expect(getRes.headers["content-type"]).toContain("image/png")
+  })
+
+  it("should return 401 for avatar endpoints without valid token", async () => {
+    const image = Buffer.from([255, 216, 255, 224, 0, 16])
+
+    const putNoAuth = await app.inject({
+      method: "PUT",
+      url: "/avatar",
+      headers: {
+        "content-type": "image/jpeg",
+      },
+      payload: image,
+    })
+    expect(putNoAuth.statusCode).toBe(401)
+
+    const getNoAuth = await app.inject({
+      method: "GET",
+      url: `/avatar/${testUserId}`,
+    })
+    expect(getNoAuth.statusCode).toBe(401)
+
+    const putBadAuth = await app.inject({
+      method: "PUT",
+      url: "/avatar",
+      headers: {
+        authorization: `Bearer invalid.token.here`,
+        "content-type": "image/jpeg",
+      },
+      payload: image,
+    })
+    expect(putBadAuth.statusCode).toBe(401)
+
+    const getBadAuth = await app.inject({
+      method: "GET",
+      url: `/avatar/${testUserId}`,
+      headers: {
+        authorization: `Bearer invalid.token.here`,
+      },
+    })
+    expect(getBadAuth.statusCode).toBe(401)
+  })
+
+  it("should return 404 when fetching non-existing avatar", async () => {
+    const newToken = await new SignJWT({ sub: "no-avatar-user", ["ph-user"]: "noavatar" })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuedAt()
+      .setNotBefore(Math.floor(Date.now() / 1000))
+      .setExpirationTime("72h")
+      .setIssuer("ph-auth")
+      .sign(privateKey)
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/avatar/no-avatar-user",
+      headers: {
+        authorization: `Bearer ${newToken}`,
+      },
+    })
+
+    expect(res.statusCode).toBe(404)
+  })
+
+  it("should return 400 for missing or unsupported avatar content-type", async () => {
+    const img = Buffer.from([0, 1, 2, 3, 4])
+
+    const missingType = await app.inject({
+      method: "PUT",
+      url: "/avatar",
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+      payload: img,
+    })
+    expect(missingType.statusCode).toBe(400)
+
+    const unsupportedType = await app.inject({
+      method: "PUT",
+      url: "/avatar",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "text/plain",
+      },
+      payload: img,
+    })
+    expect(unsupportedType.statusCode).toBe(400)
   })
 })

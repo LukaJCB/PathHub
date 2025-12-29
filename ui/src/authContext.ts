@@ -12,6 +12,7 @@ export interface User {
   currentPage: PostManifestPage
   ownGroupState: ClientState
   masterKey: Uint8Array
+  avatarUrl: string
 }
 
 export interface AuthContextValue {

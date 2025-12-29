@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fractalsoftware/random-avatar-generator':
+        specifier: ^1.0.11
+        version: 1.0.11
       '@noble/hashes':
         specifier: 1.8.0
         version: 1.8.0
@@ -331,6 +334,9 @@ packages:
   '@eslint/plugin-kit@0.3.5':
     resolution: {integrity: sha512-Z5kJ+wU3oA7MMIqVR9tyZRtjYPr4OC004Q4Rw7pgOKUOKkJfZ3O24nz3WYfGRpMDNmcOi3TwQOmgm7B7Tpii0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@fractalsoftware/random-avatar-generator@1.0.11':
+    resolution: {integrity: sha512-LV+ndmma0uRkxBIukxgZU8XwH0QoTY/mhLNgLRwoUyuMmyosxdWzVW85Y4DtrCRrn3lkuLB+IQckdVfNdUxhNA==}
 
   '@hpke/common@1.8.1':
     resolution: {integrity: sha512-PSI4QSxH8XDli0TqAsWycVfrLLCM/bBe+hVlJwtuJJiKIvCaFS3CXX/WtRfJceLJye9NHc2J7GvHVCY9B1BEbA==}
@@ -2452,6 +2458,8 @@ snapshots:
     dependencies:
       '@eslint/core': 0.15.2
       levn: 0.4.1
+
+  '@fractalsoftware/random-avatar-generator@1.0.11': {}
 
   '@hpke/common@1.8.1': {}
 

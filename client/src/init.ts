@@ -19,7 +19,7 @@ import { base64urlToUint8, RemoteStore, retrieveAndDecryptPostManifestPage, retr
 import { encryptAndStore, encryptAndStoreWithPostSecret } from "./createPost";
 import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest } from "./codec/encode";
 import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
-
+import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
 
 export interface SignatureKeyPair {
   signKey: Uint8Array
@@ -107,9 +107,13 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
       defaultCryptoProvider,
     )
 
+    const avatar = new TextEncoder().encode(getRandomAvatar(5,"circle"))
+
+    
 
     const [[manifest, postManifest]] = await Promise.all([
       initManifest(groupState, impl, rs, page, gmStorageId, frStorageId, masterKey, manifestId),
+      rs.client.putAvatar(avatar, "image/svg+xml"),
       encryptAndStoreWithPostSecret(masterKey, rs, encodeClientState(groupState), gmStorageId),
       encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowRequests({incoming:[], outgoing:[]}), frStorageId)
     ])

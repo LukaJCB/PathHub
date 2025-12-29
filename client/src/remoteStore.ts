@@ -18,6 +18,7 @@ export interface RemoteStore {
   // getGroupState(groupId: Uint8Array): Promise<ClientState>
 
 
+  client: StorageClient
   getContent(storageId: string, accessKey: Uint8Array): Promise<{body: Uint8Array, nonce: string} | undefined>
   // getPost(
   //   storageId: StorageIdentifier,
@@ -38,6 +39,7 @@ export function createRemoteStore(client: StorageClient): RemoteStore {
       const res = await client.batchGetContent([[base64urlToUint8(storageId), accessKey]])
       return res[storageId]!
     },
+    client
   }
 }
 

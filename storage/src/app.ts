@@ -10,6 +10,7 @@ export async function build(config: {
   minioAccessKeyId: string
   minioSecretAccessKey: string
   bucketName: string
+  bucketNamePublic: string
   publicKey: CryptoKey
 }) {
   const fastify = Fastify()
@@ -38,6 +39,7 @@ export async function build(config: {
     },
     forcePathStyle: true,
   })
+  
 
   type AuthenticateResult = { status: "ok"; userId: string; username: string } | { status: "error" }
 
@@ -141,6 +143,134 @@ export async function build(config: {
       )
 
       return reply.code(204).send()
+    },
+  )
+
+  const putAvatarSchema = {
+    schema: {
+      response: {
+        204: {
+          type: "object",
+        },
+        401: {
+          type: "object",
+        },
+        403: {
+          type: "object",
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  }
+
+  fastify.put(
+    "/avatar",
+    putAvatarSchema,
+    async (req, reply) => {
+      const user = await authenticate(req.headers.authorization)
+      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+      const contentType = req.headers["content-type"]
+
+      if (contentType === undefined || 
+        (contentType !==  "image/png" &&
+        contentType !== "image/jpeg" &&
+        contentType !== "image/svg+xml")) {
+          return reply.code(400).send(encode({ error: "Expected image content type" }))
+        }
+
+      const key = shardObjectKey(user.userId)
+
+      try {
+        const head = await s3.send(
+          new HeadObjectCommand({
+            Bucket: config.bucketNamePublic,
+            Key: key,
+          }),
+        )
+
+        const owner = head.Metadata?.["userid"]
+        if (owner && owner !== user.userId) {
+          return reply.code(403).send(encode({ error: "This object is restricted" }))
+        }
+      } catch (err) {
+        if (isErrorWithName(err) && err.name !== "NotFound") {
+          throw err
+        }
+      }
+
+      const buffer = await streamToBuffer(req.raw)
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: config.bucketNamePublic,
+          Key: key,
+          Body: buffer,
+          ContentType: contentType,
+          Metadata: { userId: user.userId },
+        }),
+      )
+
+      return reply.code(204).send()
+    },
+  )
+
+  const getAvatarSchema = {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+        },
+        required: ["userId"],
+      },
+      response: {
+        200: {
+          type: "object",
+        },
+        401: {
+          type: "object",
+        },
+        404: {
+          type: "object",
+        },
+      },
+    },
+  }
+
+  fastify.get<{ Params: { userId: string }}>(
+    "/avatar/:userId",
+    getAvatarSchema,
+    async (req, reply) => {
+      const user = await authenticate(req.headers.authorization)
+      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+      const userId = req.params.userId
+      const key = shardObjectKey(userId)
+
+      try {
+        const obj = await s3.send(
+            new GetObjectCommand({
+              Bucket: config.bucketNamePublic,
+              Key: key,
+            }),
+          )
+
+        const avatar = await streamToBuffer(obj.Body as Readable)
+        const mimeType = obj.ContentType ?? "application/octet-stream"
+        return reply.code(200).type(mimeType).send(avatar)
+      } catch (err) {
+        if (isErrorWithName(err) && err.name === "NoSuchKey") {
+          return reply.code(404).type("application/cbor").send()
+        }
+      }
+
+      
     },
   )
 

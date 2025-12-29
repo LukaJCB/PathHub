@@ -16,6 +16,7 @@ import FollowRequestsView from './FollowRequests.js';
 import FollowerView from './FollowerView.js';
 import FollowingView from './FollowingView.js';
 import { BulkImport } from './Import.js';
+import UploadAvatarView from './UploadAvatarView.js';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')).render(
               <Route index element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
               <Route path=":storageId" element={<ProtectedRoute><PostView /></ProtectedRoute>} />
             </Route>
+            <Route path="avatar" element={<ProtectedRoute><UploadAvatarView /></ProtectedRoute>} />
             <Route path="followRequests" element={<ProtectedRoute><FollowRequestsView /></ProtectedRoute>} />
             <Route path="followers" element={<ProtectedRoute><FollowerView /></ProtectedRoute>} />
             <Route path="following" element={<ProtectedRoute><FollowingView /></ProtectedRoute>} />

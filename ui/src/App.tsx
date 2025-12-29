@@ -6,22 +6,49 @@ import ProfileView from './ProfileView.js';
 import { Link } from 'react-router';
 import { BulkImport } from './Import.js';
 import {getTimeline, TimelineItem} from "pathhub-client/src/timeline.js"
-import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
+import { createContentClient, StorageClient } from 'pathhub-client/src/http/storageClient.js';
 import { createRemoteStore } from 'pathhub-client/src/remoteStore.js';
 import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
-import { PostMeta } from 'pathhub-client/src/manifest.js';
+import { getUserInfo } from 'pathhub-client/src/userInfo.js';
 import { PostPreview } from './PostPreview.js';
+import { bytesToArrayBuffer } from 'ts-mls/util/byteArray.js';
 
+
+export async function getAvatarImageUrl(userId: string, client: StorageClient): Promise<string | undefined> {
+  const avatar = await getUserInfo(userId, client)
+  if (avatar.contentType === "image/svg+xml") {
+    const decoded = new TextDecoder().decode(avatar.body)
+    const imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(decoded)}`
+    return imageUrl
+  } else if (avatar.contentType === "image/png" || avatar.contentType === "image/jpeg") {
+    const blob = new Blob([bytesToArrayBuffer(avatar.body)], { type: avatar.contentType });
+    const url = URL.createObjectURL(blob);
+
+    return url
+  }
+}
 
 function App() {
   const {user} = useAuthRequired()
   const [posts, setPosts] = useState<TimelineItem[]>([])
+  const [avatars, setAvatars] = useState<Map<string, string>>(new Map())
   const rs = createRemoteStore(createContentClient("/storage", user.token))
 
   useEffect(() => {
     const fetchData = async () => {
-      const posts = await getTimeline(user.manifest, user.id, user.currentPage, user.masterKey, rs, await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
+      const posts = await getTimeline(user.manifest, user.id, user.currentPage, user.masterKey, rs, await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))      
       setPosts(posts)
+
+      const authors: Set<string> = new Set()
+      posts.forEach(p => authors.add(p.userId))
+
+      const avatars = new Map<string, string>()
+      for (const author of authors) {
+        const avatar = await getAvatarImageUrl(author, rs.client)
+        if (avatar) { avatars.set(author, avatar) }
+      }
+      setAvatars(avatars)
+      
     }
     fetchData()
   }, [])
@@ -55,7 +82,7 @@ function App() {
         {posts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {posts.map(post =>
-              <PostPreview post={post.post} userId={post.userId} page={post.page} token={user.token} key={post.post.main[0]}/>
+              <PostPreview post={post.post} userId={post.userId} page={post.page} token={user.token} avatarUrl={avatars.get(post.userId)} key={post.post.main[0]}/>
             )}
           </div>
         ) : (

@@ -23,6 +23,7 @@
     "dist"
   ],
   "dependencies": {
+    "@fractalsoftware/random-avatar-generator": "^1.0.11",
     "@noble/hashes": "1.8.0",
     "@serenity-kit/opaque": "0.9.0",
     "cbor-x": "1.6.0",

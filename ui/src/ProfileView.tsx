@@ -8,6 +8,7 @@ import { getAllFollowees, getAllFollowers } from "pathhub-client/src/followReque
 import { getPageForUser } from "pathhub-client/src/profile.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl} from "ts-mls";
 import { PostPreview } from "./PostPreview";
+import { getAvatarImageUrl } from "./App";
 
 
 export const ProfileView: React.FC = () => {
@@ -18,6 +19,7 @@ export const ProfileView: React.FC = () => {
     const profileUserId = params.userId!
     const [postManifestPage, setPostManifestPage] = useState<PostManifestPage | null>(null)
     const [canView, setCanView] = useState(true)
+    const [avatar, setAvatar] = useState<string | null>(null)
     const rs = createRemoteStore(createContentClient("/storage", user.token))
     useEffect(() => {
         const fetchData = async () => {
@@ -30,18 +32,38 @@ export const ProfileView: React.FC = () => {
                 setCanView(false)
             } else {
                 setPostManifestPage(result[0])
+                const avatar = profileUserId === user.id ? user.avatarUrl : await getAvatarImageUrl(profileUserId, rs.client)
+                if (avatar) { setAvatar(avatar) }
             }
         }
 
        fetchData()
     }, [params])
 
+    const initials = user?.name 
+        ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+        : profileUserId.slice(0,2).toUpperCase()
+    
     
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="bg-white rounded-lg shadow-md p-8 mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-6">{user.name}</h1>
+                    <div className="flex items-center gap-10 mb-6">
+                        <Link to={`/avatar`} aria-label="Edit profile picture" className="group relative inline-block">
+                            {avatar ? (
+                                <img src={avatar} alt="Avatar" className="w-28 h-28 rounded-full object-cover ring-2 ring-indigo-100 group-hover:ring-indigo-400 transition" />
+                            ) : (
+                                <div className="w-28 h-28 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-4xl font-semibold">
+                                    {initials}
+                                </div>
+                            )}
+                            <span className="absolute inset-0 rounded-full bg-black/35 flex items-center justify-center text-white text-sm font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                                Edit
+                            </span>
+                        </Link>
+                        <h1 className="text-4xl font-bold text-gray-900">{user.name}</h1>
+                    </div>
                     
                     {canView ? (
                         <>
@@ -85,7 +107,7 @@ export const ProfileView: React.FC = () => {
                                 {postManifestPage && postManifestPage.posts.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                                         {postManifestPage.posts.map(post =>
-                                            <PostPreview post={post} userId={profileUserId} page={page} token={user.token} key={post.main[0]}/>
+                                            <PostPreview post={post} userId={profileUserId} page={page} token={user.token} avatarUrl={avatar} key={post.main[0]}/>
                                         )}
                                     </div>
                                 ) : (

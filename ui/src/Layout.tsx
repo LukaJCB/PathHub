@@ -5,6 +5,7 @@ import imgUrl from './assets/logo.png';
 
 export function Layout() {
   const {logout, user} = useAuth()
+  const initials = user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : ''
   return (
     <>
       <header className="bg-white shadow-md sticky top-0 z-50">
@@ -18,7 +19,16 @@ export function Layout() {
             <div className="flex items-center gap-6">
               {user && (
                 <>
-                  <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}/0`}><span className="font-semibold">{user.name}</span></Link></span>
+                  <div className="flex items-center gap-3">
+                    {user?.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={`${user.name} avatar`} className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-100" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-semibold">
+                        {initials}
+                      </div>
+                    )}
+                    <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}/0`}><span className="font-semibold">{user.name}</span></Link></span>
+                  </div>
                   <Link
                     to="/followRequests"
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"

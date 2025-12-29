@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useAuthRequired } from "./useAuth";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { commentPost, likePost, unlikePost } from "pathhub-client/src/postInteraction.js";
@@ -11,6 +11,7 @@ import { decodeComments, decodeLikes, decodeRoute } from "pathhub-client/src/cod
 import { getPageForUser } from "pathhub-client/src/profile.js";
 import { decodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import MapLibreRouteMap from "./MapLibreView";
+import { getAvatarImageUrl } from "./App";
 
 
 export const PostView = () => {
@@ -30,6 +31,7 @@ export const PostView = () => {
     const [userHasLiked, setUserHasLiked] = useState(false)
     const [gpxData, setGpxData] = useState<[number, number, number][] | null>(null)
     const [commentText, setCommentText] = useState("")
+    const [avatar, setAvatar] = useState<string | null>(null)
     
     useEffect(() => {
         if (!storageId) throw new Error("no storage id")
@@ -78,6 +80,8 @@ export const PostView = () => {
                 }
                 
                 setLikes(p!.totalLikes)
+                const avatar = profileUserId === user.id ? user.avatarUrl : await getAvatarImageUrl(profileUserId, rs.client)
+                setAvatar(avatar)
             }
            
         }
@@ -181,7 +185,24 @@ export const PostView = () => {
                     {post && (
                         <div className="p-8 border-b border-gray-200">
                             <h2 className="text-3xl font-bold text-gray-900 mb-4">{post.title}</h2>
-                            
+                            <Link 
+                                to={`/user/${profileUserId}/0`} 
+                                aria-label="Open profile"
+                                className="flex items-center gap-3 mb-4 hover:opacity-80"
+                            >
+                                {avatar ? (
+                                    <img 
+                                        src={avatar} 
+                                        alt="Avatar" 
+                                        className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-100"
+                                    />
+                                ) : (
+                                    <div className="w-9 h-9 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-semibold">
+                                        {profileUserId.slice(0,2).toUpperCase()}
+                                    </div>
+                                )}
+                                <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{profileUserId}</span></p>
+                            </Link>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div className="bg-blue-50 p-3 rounded-lg">
                                     <div className="text-xs text-gray-600 mb-1">Distance</div>

@@ -9,10 +9,11 @@ type Props = {
     post: PostMeta
     userId: string
     page: number,
-    token: string
+    token: string,
+    avatarUrl?: string
 }
 
-export const PostPreview: React.FC<Props> = ({post, userId, page, token}) => {
+export const PostPreview: React.FC<Props> = ({post, userId, page, token, avatarUrl}) => {
 
     const [thumb, setThumb] = useState<string | null>(null)
     const rs = createRemoteStore(createContentClient("/storage", token))
@@ -38,19 +39,43 @@ export const PostPreview: React.FC<Props> = ({post, userId, page, token}) => {
     }, [])
     
     return (
-        <Link to={`/user/${userId}/${page}/${post.main[0]}`} className="block hover:opacity-90 transition-opacity">
+        <div className="block hover:opacity-90 transition-opacity">
             <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                 {thumb && (
-                    <div className="aspect-video w-full overflow-hidden bg-gray-200">
-                        <img src={thumb} alt={post.title} className="w-full h-full object-cover" />
-                    </div>
+                    <Link 
+                        to={`/user/${userId}/${page}/${post.main[0]}`} 
+                        aria-label="Open post"
+                        className="group relative block"
+                    >
+                        <div className="aspect-video w-full overflow-hidden bg-gray-200">
+                            <img src={thumb} alt={post.title} className="w-full h-full object-cover" />
+                        </div>
+                        <span className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity">Open Post</span>
+                    </Link>
                 )}
                 
                 <div className="p-4">
-                    <h2 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{post.title}</h2>
-                    
-                    <p className="text-xs text-gray-400 mb-2">by <span className="font-medium text-gray-600">{userId}</span></p>
-                    
+                    <Link 
+                        to={`/user/${userId}/${page}/${post.main[0]}`} 
+                        aria-label="Open post"
+                        className="block"
+                    >
+                        <h2 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2 hover:text-blue-600">{post.title}</h2>
+                    </Link>
+
+                    <Link to={`/user/${userId}/0`} aria-label="Open profile" className="hover:opacity-80">
+                        <div className="flex items-center gap-3 mb-3">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-100" />
+                            ) : (
+                                <div className="w-8 h-8 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-semibold">
+                                    {userId?.slice(0,2).toUpperCase()}
+                                </div>
+                            )}
+                            <p className="text-xs text-gray-500">by <span className="font-medium text-gray-700">{userId}</span></p>
+                        </div>
+                    </Link>
+
                     <p className="text-sm text-gray-500 mb-3">
                         {new Date(post.date).toLocaleDateString('en-US', { 
                             year: 'numeric', 
@@ -90,6 +115,6 @@ export const PostPreview: React.FC<Props> = ({post, userId, page, token}) => {
                     </div>
                 </div>
             </div>
-        </Link>
+        </div>
     )
 }
