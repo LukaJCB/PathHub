@@ -28,6 +28,8 @@ export interface AuthClient {
 
   getUserInfo(userId: string[], token: string): Promise<{ username: string, key: Uint8Array, userid: string }[]>
 
+  lookupUser(username: string, token: string): Promise<{ username: string, key: Uint8Array, userid: string } | undefined>
+
   getJwks(): Promise<JWKWithMeta>
 }
 
@@ -86,6 +88,25 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
     finishLogin: (body) => postCBOR<typeof body, { token: string; manifest: string, encryptedMasterKey: Uint8Array, nonce: Uint8Array, salt: Uint8Array }>("/finishLogin", body),
 
     getUserInfo: (body, token) => postCBORWithAuth<typeof body,{ username: string, key: Uint8Array, userid: string }[]>(`/userInfo`, body, token),
+
+    lookupUser: async (username, token) => {
+      const res = await fetch(baseUrl + "/lookupUser", {
+        method: "POST",
+        headers: {...defaultHeaders, Authorization: `Bearer ${token}` },
+        body: encode({ username }) as BufferSource,
+      })
+
+      if (res.status === 404) {
+        return undefined
+      }
+
+      if (!res.ok) {
+        throw new Error(`Unexpected status ${res.status} from /lookupUser`)
+      }
+
+      const arrayBuffer = await res.arrayBuffer()
+      return decode(new Uint8Array(arrayBuffer)) as { username: string, key: Uint8Array, userid: string }
+    },
 
     getJwks: () => getJSON<JWKWithMeta>("/.well-known/jwks.json"),
   }

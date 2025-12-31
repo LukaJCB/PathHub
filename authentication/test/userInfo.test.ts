@@ -5,13 +5,100 @@ import * as opaque from "@serenity-kit/opaque"
 import { generateKeyPair } from "jose"
 import { FastifyInstance } from "fastify"
 
+const password = "securepass123"
+
+async function registerUser(app: FastifyInstance, username: string, signingKey: Uint8Array): Promise<string> {
+  const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
+
+  const res1 = await app.inject({
+    method: "POST",
+    url: "/startRegistration",
+    headers: {
+      "Content-Type": "application/cbor",
+      Accept: "application/cbor",
+    },
+    payload: encode({ username, registrationRequest }),
+  })
+
+  expect(res1.statusCode).toBe(200)
+  const { response: registrationResponse } = decode(res1.rawPayload)
+
+  const { registrationRecord } = opaque.client.finishRegistration({
+    registrationResponse,
+    clientRegistrationState,
+    password,
+  })
+
+  const finishRegBody = {
+    username,
+    registrationRecord,
+    encryptedMasterKey: new Uint8Array([1, 2, 3]),
+    masterKeyNonce: new Uint8Array([4, 5, 6]),
+    encryptedRecoveryKey: new Uint8Array([7, 8, 9]),
+    recoveryKeyNonce: new Uint8Array([10, 11, 12]),
+    passwordEncryptedMasterKey: new Uint8Array([1, 2, 3]),
+    passwordMasterKeyNonce: new Uint8Array([1, 2, 3]),
+    salt: new Uint8Array([1, 2, 3]),
+    signingPublicKey: signingKey,
+  }
+
+  const res2 = await app.inject({
+    method: "POST",
+    url: "/finishRegistration",
+    headers: {
+      "Content-Type": "application/cbor",
+      Accept: "application/cbor",
+    },
+    payload: encode(finishRegBody),
+  })
+
+  expect(res2.statusCode).toBe(201)
+  const { userId } = decode(res2.rawPayload)
+  return userId
+}
+
+async function loginUser(app: FastifyInstance, username: string): Promise<string> {
+  const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password })
+
+  const res1 = await app.inject({
+    method: "POST",
+    url: "/startLogin",
+    headers: {
+      "Content-Type": "application/cbor",
+      Accept: "application/cbor",
+    },
+    payload: encode({ username, startLoginRequest }),
+  })
+
+  expect(res1.statusCode).toBe(200)
+  const { response: loginResponse } = decode(res1.rawPayload)
+
+  const { finishLoginRequest } = opaque.client.finishLogin({
+    loginResponse,
+    clientLoginState,
+    password,
+  })!
+
+  const res2 = await app.inject({
+    method: "POST",
+    url: "/finishLogin",
+    headers: {
+      "Content-Type": "application/cbor",
+      Accept: "application/cbor",
+    },
+    payload: encode({ username, finishLoginRequest }),
+  })
+
+  expect(res2.statusCode).toBe(200)
+  const { token } = decode(res2.rawPayload)
+  return token
+}
+
 describe("/userInfo endpoint", () => {
   let app: FastifyInstance
   const serverSecret = opaque.server.createSetup()
   let privateKey: CryptoKey
   let publicKey: CryptoKey
-
-  const password = "securepass123"
   
 
   const username1 = `user1-${Date.now()}@example.com`
@@ -47,102 +134,15 @@ describe("/userInfo endpoint", () => {
     })
 
 
-    const user1Id = await registerUser(username1, signingPublicKey1)
+    const user1Id = await registerUser(app, username1, signingPublicKey1)
     userId1 = user1Id
-    token1 = await loginUser(username1)
+    token1 = await loginUser(app, username1)
 
 
-    userId2 = await registerUser(username2, signingPublicKey2)
+    userId2 = await registerUser(app, username2, signingPublicKey2)
 
-    userId3 = await registerUser(username3, signingPublicKey3)
+    userId3 = await registerUser(app, username3, signingPublicKey3)
   })
-
-  async function registerUser(username: string, signingKey: Uint8Array): Promise<string> {
-    const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
-
-    const res1 = await app.inject({
-      method: "POST",
-      url: "/startRegistration",
-      headers: {
-        "Content-Type": "application/cbor",
-        Accept: "application/cbor",
-      },
-      payload: encode({ username, registrationRequest }),
-    })
-
-    expect(res1.statusCode).toBe(200)
-    const { response: registrationResponse } = decode(res1.rawPayload)
-
-    const { registrationRecord } = opaque.client.finishRegistration({
-      registrationResponse,
-      clientRegistrationState,
-      password,
-    })
-
-    const finishRegBody = {
-      username,
-      registrationRecord,
-      encryptedMasterKey: new Uint8Array([1, 2, 3]),
-      masterKeyNonce: new Uint8Array([4, 5, 6]),
-      encryptedRecoveryKey: new Uint8Array([7, 8, 9]),
-      recoveryKeyNonce: new Uint8Array([10, 11, 12]),
-      passwordEncryptedMasterKey: new Uint8Array([1, 2, 3]),
-      passwordMasterKeyNonce: new Uint8Array([1, 2, 3]),
-      salt: new Uint8Array([1, 2, 3]),
-      signingPublicKey: signingKey,
-    }
-
-    const res2 = await app.inject({
-      method: "POST",
-      url: "/finishRegistration",
-      headers: {
-        "Content-Type": "application/cbor",
-        Accept: "application/cbor",
-      },
-      payload: encode(finishRegBody),
-    })
-
-    expect(res2.statusCode).toBe(201)
-    const { userId } = decode(res2.rawPayload)
-    return userId
-  }
-
-  async function loginUser(username: string): Promise<string> {
-    const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password })
-
-    const res1 = await app.inject({
-      method: "POST",
-      url: "/startLogin",
-      headers: {
-        "Content-Type": "application/cbor",
-        Accept: "application/cbor",
-      },
-      payload: encode({ username, startLoginRequest }),
-    })
-
-    expect(res1.statusCode).toBe(200)
-    const { response: loginResponse } = decode(res1.rawPayload)
-
-    const { finishLoginRequest } = opaque.client.finishLogin({
-      loginResponse,
-      clientLoginState,
-      password,
-    })!
-
-    const res2 = await app.inject({
-      method: "POST",
-      url: "/finishLogin",
-      headers: {
-        "Content-Type": "application/cbor",
-        Accept: "application/cbor",
-      },
-      payload: encode({ username, finishLoginRequest }),
-    })
-
-    expect(res2.statusCode).toBe(200)
-    const { token } = decode(res2.rawPayload)
-    return token
-  }
 
   it("should return user info for existing users", async () => {
     const res = await app.inject({
@@ -318,5 +318,129 @@ describe("/userInfo endpoint", () => {
     expect(user2Info.userid).toBe(userId2)
     expect(user2Info.username).toBe(username2)
     expect(new Uint8Array(user2Info.key)).toEqual(signingPublicKey2)
+  })
+})
+
+describe("/lookupUser endpoint", () => {
+  let app: FastifyInstance
+  const serverSecret = opaque.server.createSetup()
+  let privateKey: CryptoKey
+  let publicKey: CryptoKey
+  
+  const username1 = `lookup-user1-${Date.now()}@example.com`
+  const signingPublicKey1 = new Uint8Array([20, 21, 22, 23, 24])
+  let userId1: string
+  let token1: string
+
+  const username2 = `lookup-user2-${Date.now()}@example.com`
+  const signingPublicKey2 = new Uint8Array([25, 26, 27, 28, 29])
+  let userId2: string
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  beforeAll(async () => {
+    const { publicKey: pub, privateKey: priv } = await generateKeyPair("EdDSA")
+    const keyId = crypto.randomUUID()
+    privateKey = priv
+    publicKey = pub
+    app = await build({
+      opaqueSecret: serverSecret,
+      pgConnection: "postgres://postgres:postgres@localhost:5432/postgres",
+      signingKey: privateKey,
+      publicKey,
+      publicKeyId: keyId,
+    })
+
+    const user1Id = await registerUser(app, username1, signingPublicKey1)
+    userId1 = user1Id
+    token1 = await loginUser(app, username1)
+
+    userId2 = await registerUser(app, username2, signingPublicKey2)
+  })
+
+  it("should successfully lookup user by username", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/lookupUser",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+        Authorization: `Bearer ${token1}`,
+      },
+      payload: encode({ username: username2 }),
+    })
+
+    expect(res.statusCode).toBe(200)
+    const result = decode(res.rawPayload)
+
+    expect(result.username).toBe(username2)
+    expect(result.userid).toBe(userId2)
+    expect(new Uint8Array(result.key)).toEqual(signingPublicKey2)
+  })
+
+  it("should return 404 when looking up non-existent username", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/lookupUser",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+        Authorization: `Bearer ${token1}`,
+      },
+      payload: encode({ username: "nonexistent@example.com" }),
+    })
+
+    expect(res.statusCode).toBe(404)
+  })
+
+  it("should return 401 when no authorization token is provided", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/lookupUser",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+      },
+      payload: encode({ username: username1 }),
+    })
+
+    expect(res.statusCode).toBe(401)
+  })
+
+  it("should return 401 when invalid authorization token is provided", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/lookupUser",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+        Authorization: "Bearer invalid.token.here",
+      },
+      payload: encode({ username: username1 }),
+    })
+
+    expect(res.statusCode).toBe(401)
+  })
+
+  it("should lookup own user by username", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/lookupUser",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+        Authorization: `Bearer ${token1}`,
+      },
+      payload: encode({ username: username1 }),
+    })
+
+    expect(res.statusCode).toBe(200)
+    const result = decode(res.rawPayload)
+
+    expect(result.username).toBe(username1)
+    expect(result.userid).toBe(userId1)
+    expect(new Uint8Array(result.key)).toEqual(signingPublicKey1)
   })
 })

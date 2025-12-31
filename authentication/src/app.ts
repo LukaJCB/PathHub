@@ -356,6 +356,50 @@ export async function build(config: {
     }
   })
 
+  const lookupUserSchema = {
+    schema: {
+      body: {
+        type: "object",
+        required: ["username"],
+        properties: {
+          username: { type: "string" },
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            username: { type: "string" },
+            key: { type: "object" },
+            userid: { type: "string" },
+          },
+        },
+        401: {
+          type: "object",
+        },
+        404: {
+          type: "object",
+        },
+      },
+    },
+  }
+
+  fastify.post<{ Body: { username: string } }>("/lookupUser", lookupUserSchema, async (req, reply) => {
+    const user = await authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+    const result = await getUserByUsername(fastify, req.body.username)
+
+    if (!result) {
+      return reply.code(404).type("application/cbor").send()
+    }
+
+    return reply
+      .code(200)
+      .type("application/cbor")
+      .send(encode(result))
+  })
+
   const jwkSchema = {
     type: "object",
     required: ["kty", "crv", "x", "alg", "use", "kid"],
@@ -495,6 +539,26 @@ async function getPublicUserInfo(
   }
 
   return [...res.rows.values()]
+}
+
+async function getUserByUsername(
+  fastify: Fastify.FastifyInstance,
+  username: string,
+): Promise<{ username: string; key: Buffer; userid: string } | undefined> {
+  const res = await fastify.pg.query<{ username: string; key: Buffer; userid: string }>(
+    `SELECT  
+      username,
+      signing_public_key as key,
+      user_id as userid
+    FROM users 
+    WHERE username = $1`,
+    [username],
+  )
+  if (res.rows.length < 1) {
+    return undefined
+  }
+
+  return res.rows.at(0)
 }
 
 type SaveUserResult = { status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }
