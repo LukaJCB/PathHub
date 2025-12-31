@@ -3,11 +3,12 @@ import { AuthContext, User } from "./authContext.js";
 import { AuthenticationClient, createAuthClient, parseToken } from "pathhub-client/src/authClient.js";
 import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import {getOrCreateManifest} from "pathhub-client/src/init.js"
-import { base64urlToUint8, createRemoteStore, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
+import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { getAvatarImageUrl } from "./App.js";
 import { getUserInfo } from "pathhub-client/src/userInfo.js";
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
+import { decodeFollowRequests } from "pathhub-client/src/codec/decode.js";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -30,7 +31,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const { expires } = parseToken(token);
 
           if (expires * 1000 > Date.now()) {
-            const { userId, username, manifest, postManifest, page, groupState, avatarUrl } =
+            const { userId, username, manifest, postManifest, page, followRequests, groupState, avatarUrl } =
               await setupUserState(token, manifestId, masterKey);
 
             setUser({
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               postManifest,
               manifest,
               manifestId,
+              followRequests,
               ownGroupState: groupState,
               masterKey,
               token,
@@ -60,9 +62,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("manifest_id", res.manifest)
     localStorage.setItem("master_key", uint8ToBase64Url(res.masterKey))
 
-    const { userId, manifest, postManifest, page, groupState, avatarUrl } = await setupUserState(res.token, res.manifest, res.masterKey)
+    const { userId, manifest, postManifest, page, followRequests,  groupState, avatarUrl } = await setupUserState(res.token, res.manifest, res.masterKey)
 
-    setUser({id: userId, name: username, currentPage: page, postManifest, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey, avatarUrl })
+    setUser({id: userId, name: username, currentPage: page, postManifest, followRequests, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey, avatarUrl })
     
   }
 
@@ -94,9 +96,11 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
   const rs = createRemoteStore(createContentClient("/storage", token))
 
   const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)
+   const result = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.followRequests), masterKey])
+  const followRequests = decodeFollowRequests(new Uint8Array(result))
   const userInfo = await getUserInfo(userId, rs.client, createAuthenticationClient("/auth"), token)
   const avatarUrl = getAvatarImageUrl(userInfo)
   
-  return { userId, username, manifest, postManifest, page, groupState,keyPair , avatarUrl};
+  return { userId, username, manifest, postManifest, page,followRequests, groupState,keyPair , avatarUrl};
 }
 

@@ -1,4 +1,4 @@
-import {PostManifestPage} from "pathhub-client/src/manifest.js"
+import {PostManifestPage, Totals} from "pathhub-client/src/manifest.js"
 import { Link, useParams } from "react-router";
 import { useAuthRequired } from "./useAuth";
 import { createRemoteStore } from "pathhub-client/src/remoteStore.js";
@@ -23,18 +23,28 @@ export const ProfileView: React.FC = () => {
     const [canView, setCanView] = useState(true)
     const [avatar, setAvatar] = useState<string | null>(null)
     const [username, setUsername] = useState<string | null>(null)
+    const [totals, setTotals] = useState<Totals | null>(null)
+    const [followers, setFollowers] = useState(0)
+    const [following, setFollowing] = useState<number | null>(null)
     const rs = createRemoteStore(createContentClient("/storage", user.token))
     useEffect(() => {
         const fetchData = async () => {
             const result = await getPageForUser(user.manifest, user.currentPage, user.postManifest, user.masterKey,
-                user.id, profileUserId, page, rs, 
+                user.id, profileUserId, page, user.ownGroupState, rs, 
                 await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"))
             )
 
             if (!result) {
                 setCanView(false)
             } else {
-                setPostManifestPage(result[0])
+                setTotals(result[1].totals)
+                setPostManifestPage(result[0][0])
+                if (user.id === profileUserId) {
+                    setFollowers(getAllFollowers(user.ownGroupState).length)
+                    setFollowing(getAllFollowees(user.manifest).length)
+                } else {
+                    setFollowers(getAllFollowers(result[2]).length)
+                }
                 const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
                 const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
                 const username = profileUserId === user.id ? user.name : userInfo.info.username
@@ -76,34 +86,38 @@ export const ProfileView: React.FC = () => {
                             <div className="mb-8">
                                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Statistics</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    {totals && (<>
                                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
                                         <div className="text-sm text-gray-600 mb-1">Total Posts</div>
-                                        <div className="text-3xl font-bold text-blue-600">{user.postManifest.totals.totalPosts}</div>
+                                        <div className="text-3xl font-bold text-blue-600">{totals.totalPosts}</div>
                                     </div>
                                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
                                         <div className="text-sm text-gray-600 mb-1">Total Distance</div>
-                                        <div className="text-3xl font-bold text-purple-600">{(user.postManifest.totals.totalDerivedMetrics.distance / 1000).toFixed(0)}</div>
+                                        <div className="text-3xl font-bold text-purple-600">{(totals.totalDerivedMetrics.distance / 1000).toFixed(0)}</div>
                                         <div className="text-xs text-gray-500">km</div>
                                     </div>
                                     <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
                                         <div className="text-sm text-gray-600 mb-1">Total Elevation</div>
-                                        <div className="text-3xl font-bold text-green-600">{Math.round(user.postManifest.totals.totalDerivedMetrics.elevation)}</div>
+                                        <div className="text-3xl font-bold text-green-600">{Math.round(totals.totalDerivedMetrics.elevation)}</div>
                                         <div className="text-xs text-gray-500">m</div>
                                     </div>
                                     <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
                                         <div className="text-sm text-gray-600 mb-1">Total Duration</div>
-                                        <div className="text-3xl font-bold text-orange-600">{(user.postManifest.totals.totalDerivedMetrics.duration / 3600000).toFixed(0)}</div>
+                                        <div className="text-3xl font-bold text-orange-600">{(totals.totalDerivedMetrics.duration / 3600000).toFixed(0)}</div>
                                         <div className="text-xs text-gray-500">hours</div>
-                                    </div>
+                                    </div></>
+                                    )}
                                     <div className="flex flex-col gap-2">
-                                        <Link to="/followers" className="bg-gradient-to-br from-pink-50 to-pink-100 p-4 rounded-lg border border-pink-200 text-center hover:shadow-md transition">
+                                        <Link to={`/user/${profileUserId}/followers`} className="bg-gradient-to-br from-pink-50 to-pink-100 p-4 rounded-lg border border-pink-200 text-center hover:shadow-md transition">
                                             <div className="text-sm text-gray-600 mb-1">Followers</div>
-                                            <div className="text-3xl font-bold text-pink-600">{getAllFollowers(user.ownGroupState).length}</div>
+                                            <div className="text-3xl font-bold text-pink-600">{followers}</div>
                                         </Link>
-                                        <Link to="/following" className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-4 rounded-lg border border-cyan-200 text-center hover:shadow-md transition">
+                                        {(following != null) && (
+                                        <Link to={`/following`} className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-4 rounded-lg border border-cyan-200 text-center hover:shadow-md transition">
                                             <div className="text-sm text-gray-600 mb-1">Following</div>
-                                            <div className="text-3xl font-bold text-cyan-600">{getAllFollowees(user.manifest).length}</div>
+                                            <div className="text-3xl font-bold text-cyan-600">{following}</div>
                                         </Link>
+                                        )}
                                     </div>
                                 </div>
                             </div>

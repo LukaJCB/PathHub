@@ -6,7 +6,6 @@ import { allowFollow, FollowRequests, requestFollow } from "pathhub-client/src/f
 import { decodeFollowRequests } from "pathhub-client/src/codec/decode.js";
 import { createCredential, getKeyPairFromGroupState } from "pathhub-client/src/init.js";
 import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js";
-import { getIncoming } from "pathhub-client/src/inbox.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { decodeKeyPackage } from "ts-mls/keyPackage.js";
 
@@ -14,47 +13,33 @@ import { decodeKeyPackage } from "ts-mls/keyPackage.js";
 export const FollowRequestsView: React.FC = () => {
 
     const {user,updateUser} = useAuthRequired()
-    const [followRequests, setFollowRequests] = useState<FollowRequests | null>(null)
     const [userId, setUserId] = useState("");
     const messager: MessageClient = createMessageClient("/messaging", user.token)
     const remoteStore: RemoteStore = createRemoteStore(createContentClient("/storage", user.token))
-    useEffect(() => {
-        const fetchData = async () => {
-            const result = await retrieveAndDecryptContent(remoteStore, [uint8ToBase64Url(user.manifest.followRequests), user.masterKey])
-            const fr = decodeFollowRequests(new Uint8Array(result))
-            setFollowRequests(fr)
-
-            const res = await getIncoming(messager, user.manifest, base64urlToUint8(user.manifestId), fr, user.id, user.masterKey, remoteStore, await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
-            setFollowRequests(res[0])
-            updateUser({manifest: res[1]})
-        }
-
-       fetchData()
-    }, [])
+    
 
     
     
-    async function acceptFollower(fr: FollowRequests, i: { followerId: string; keyPackage: Uint8Array; }): Promise<void> {
+    async function acceptFollower(i: { followerId: string; keyPackage: Uint8Array; }): Promise<void> {
 
         const kp = decodeKeyPackage(i.keyPackage, 0)![0]
 
-        const [newFollowRequests, newGroup, newManifest, newPostManifest] = await allowFollow(i.followerId, user.id, kp, fr, user.currentPage, user.postManifest, 
+        const [newFollowRequests, newGroup, newManifest, newPostManifest] = await allowFollow(i.followerId, user.id, kp, user.followRequests, user.currentPage, user.postManifest, 
             user.manifest, base64urlToUint8(user.manifestId), user.masterKey, remoteStore, messager, user.ownGroupState,
             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"))
         )
-        updateUser({manifest: newManifest, postManifest: newPostManifest, ownGroupState: newGroup})
-        setFollowRequests(newFollowRequests)
+        updateUser({manifest: newManifest, postManifest: newPostManifest, followRequests: newFollowRequests, ownGroupState: newGroup})
 
     }
 
-    async function handleSubmitFollowRequest(e: FormEvent, followRequests: FollowRequests) {
+    async function handleSubmitFollowRequest(e: FormEvent) {
         e.preventDefault()
 
-        const newFollowRequests = await requestFollow(createCredential(user.id), userId, getKeyPairFromGroupState(user.ownGroupState), followRequests, 
+        const newFollowRequests = await requestFollow(createCredential(user.id), userId, getKeyPairFromGroupState(user.ownGroupState), user.followRequests, 
             user.manifest.followRequests, user.masterKey, messager, remoteStore, 
             await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
 
-        setFollowRequests(newFollowRequests)
+        updateUser({followRequests: newFollowRequests})
         setUserId("")
     }
 
@@ -63,20 +48,20 @@ export const FollowRequestsView: React.FC = () => {
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">Follow Requests</h1>
                 
-                {followRequests && (
+                
                     <div className="space-y-8">
                         {/* Inbound Requests */}
                         <div className="bg-white rounded-lg shadow-md p-8">
                             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span>📥</span> Inbound Requests ({followRequests.incoming.length})
+                                <span>📥</span> Inbound Requests ({user.followRequests.incoming.length})
                             </h2>
-                            {followRequests.incoming.length > 0 ? (
+                            {user.followRequests.incoming.length > 0 ? (
                                 <div className="space-y-3">
-                                    {followRequests.incoming.map(i => (
+                                    {user.followRequests.incoming.map(i => (
                                         <div key={i.followerId} className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
                                             <span className="font-medium text-gray-900">{i.followerId}</span>
                                             <button 
-                                                onClick={e => acceptFollower(followRequests, i)}
+                                                onClick={e => acceptFollower(i)}
                                                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
                                             >
                                                 Accept
@@ -92,11 +77,11 @@ export const FollowRequestsView: React.FC = () => {
                         {/* Outbound Requests */}
                         <div className="bg-white rounded-lg shadow-md p-8">
                             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span>📤</span> Outbound Requests ({followRequests.outgoing.length})
+                                <span>📤</span> Outbound Requests ({user.followRequests.outgoing.length})
                             </h2>
-                            {followRequests.outgoing.length > 0 ? (
+                            {user.followRequests.outgoing.length > 0 ? (
                                 <div className="space-y-3">
-                                    {followRequests.outgoing.map(i => (
+                                    {user.followRequests.outgoing.map(i => (
                                         <div key={i.followeeId} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                             <span className="font-medium text-gray-900">{i.followeeId}</span>
                                             <p className="text-sm text-gray-500 mt-1">Pending approval</p>
@@ -108,12 +93,11 @@ export const FollowRequestsView: React.FC = () => {
                             )}
                         </div>
 
-                        {/* New Request Form */}
                         <div className="bg-white rounded-lg shadow-md p-8">
                             <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                                 <span>➕</span> Send Follow Request
                             </h3>
-                            <form onSubmit={e => handleSubmitFollowRequest(e, followRequests)} className="space-y-4">
+                            <form onSubmit={e => handleSubmitFollowRequest(e)} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         User ID
@@ -135,7 +119,6 @@ export const FollowRequestsView: React.FC = () => {
                             </form>
                         </div>
                     </div>
-                )}
             </div>
         </div>
     )

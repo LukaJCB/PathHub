@@ -8,7 +8,7 @@ import { getGroupStateIdFromManifest } from "./init";
 import { decodeMessagePublic } from "./codec/decode";
 
 
-export async function getIncoming(client: MessageClient, manifest: Manifest,
+export async function processIncoming(client: MessageClient, manifest: Manifest,
     manifestId: Uint8Array,
     followRequests: FollowRequests, 
     userId: string,
@@ -17,6 +17,7 @@ export async function getIncoming(client: MessageClient, manifest: Manifest,
 impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined]> {
     const messages = await client.receiveMessages()
 
+    console.log(`Fetched ${messages.length} message, processing...`)
     let currentFollowRequests = followRequests
     let currentManifest = manifest
     let currentFollowerManifest = undefined
@@ -43,6 +44,8 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | un
     if (messages.length > 0) {
         await client.ackMessages({messageIds: messages.map(m => m.id)})
     }
+
+    console.log(`Finished processing ${messages.length} messages`)
 
    
     return [currentFollowRequests, currentManifest, currentFollowerManifest, currentClientState]

@@ -1,3 +1,4 @@
+import { FollowRequests } from "pathhub-client/src/followRequest.js";
 import { PostManifestPage, Manifest, PostManifest } from "pathhub-client/src/manifest.js";
 import { createContext } from "react";
 import {ClientState} from "ts-mls"
@@ -11,6 +12,7 @@ export interface User {
   postManifest: PostManifest
   currentPage: PostManifestPage
   ownGroupState: ClientState
+  followRequests: FollowRequests
   masterKey: Uint8Array
   avatarUrl: string
 }

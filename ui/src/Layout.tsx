@@ -1,11 +1,12 @@
 import { useAuth } from "./useAuth";
 import { Link, Outlet } from "react-router";
-
+import { useIsFetching } from "@tanstack/react-query";
 import imgUrl from './assets/logo.png';
 
 export function Layout() {
   const {logout, user} = useAuth()
   const initials = user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : ''
+  const isProcessing = useIsFetching({ queryKey: ["messages"]}) > 0;
   return (
     <>
       <header className="bg-white shadow-md sticky top-0 z-50">
@@ -49,6 +50,21 @@ export function Layout() {
       </header>
       <main className="min-h-screen bg-gray-50">
         <Outlet/>
+        <footer className="bg-white border-t border-gray-200 mt-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">
+                © 2026 PathHub. All rights reserved.
+              </p>
+              {isProcessing && (
+                <div className="flex items-center gap-2 text-sm text-indigo-600">
+                  <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Processing messages...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </footer>
       </main>
     </>
   );

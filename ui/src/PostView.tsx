@@ -1,7 +1,6 @@
 import {Comment, PostManifestPage, PostMeta, StorageIdentifier} from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react";
 import { useAuthRequired } from "./useAuth";
-import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { Link, useParams } from "react-router";
 import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
@@ -35,20 +34,22 @@ export const PostView = () => {
     const [commentText, setCommentText] = useState("")
     const [avatar, setAvatar] = useState<string | null>(null)
     const [username, setUsername] = useState<string | null>(null)
+    const [commentUsernames, setCommentUsernames] = useState<Map<string, string>>(new Map())
+    const [commentAvatars, setCommentAvatars] = useState<Map<string, string>>(new Map())
     
     useEffect(() => {
         if (!storageId) throw new Error("no storage id")
         const fetchData = async () => {
 
             const result = await getPageForUser(user.manifest, user.currentPage, user.postManifest, user.masterKey,
-                user.id, profileUserId, page, rs, 
+                user.id, profileUserId, page, user.ownGroupState, rs, 
                 await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"))
             )
 
             if (!result) {
                 setCanView(false)
             } else {
-                const currentPage = result
+                const [currentPage, pageManifest] = result
                 setPostManifestPage(currentPage)
 
                 const p = currentPage[0].posts.find(pm => pm.main[0] === storageId)
@@ -75,7 +76,8 @@ export const PostView = () => {
                 setImageUrls(urls)
 
                 setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
-                if (comments) setComments(decodeComments(new Uint8Array(comments)))
+                const decodedComments = comments ? decodeComments(new Uint8Array(comments)) : []
+                setComments(decodedComments)
 
                 if (likes) {
                     const ls = decodeLikes(new Uint8Array(likes))
@@ -88,6 +90,27 @@ export const PostView = () => {
                 const username = profileUserId === user.id ? user.name : userInfo.info.username
                 if (avatar) { setAvatar(avatar) }
                 if (username) { setUsername(username)}
+
+
+                //todo combine this with fetching the post author username & avatar
+                const commentAuthors: Set<string> = new Set()
+                decodedComments.forEach(c => commentAuthors.add(c.author))
+
+                const commentUsernames = new Map<string, string>()
+                const commentAvatars = new Map<string, string>()
+                //todo parallelize this
+                for (const author of commentAuthors) {
+                    const authorInfo = await getUserInfo(author, rs.client, createAuthenticationClient("/auth"), user.token)
+                    if (authorInfo.info) {
+                        commentUsernames.set(author, authorInfo.info.username)
+                    }
+                    const authorAvatar = getAvatarImageUrl(authorInfo)
+                    if (authorAvatar) {
+                        commentAvatars.set(author, authorAvatar)
+                    }
+                }
+                setCommentUsernames(commentUsernames)
+                setCommentAvatars(commentAvatars)
             }
            
         }
@@ -295,8 +318,24 @@ export const PostView = () => {
                             <div className="space-y-4 mb-8">
                                 {comments.map(c => (
                                     <div key={uint8ToBase64Url(c.signature)} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                        <div className="font-semibold text-gray-900">{c.author}</div>
-                                        <p className="text-gray-600 mt-1">{c.text}</p>
+                                        <Link 
+                                            to={`/user/${c.author}/0`}
+                                            className="flex items-center gap-3 mb-2 hover:opacity-80"
+                                        >
+                                            {commentAvatars.get(c.author) ? (
+                                                <img 
+                                                    src={commentAvatars.get(c.author)} 
+                                                    alt="Commenter avatar" 
+                                                    className="w-8 h-8 rounded-full object-cover ring-2 ring-gray-200"
+                                                />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-semibold text-xs">
+                                                    {(commentUsernames.get(c.author) || c.author).slice(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="font-semibold text-gray-900">{commentUsernames.get(c.author) || c.author}</div>
+                                        </Link>
+                                        <p className="text-gray-600 ml-11">{c.text}</p>
                                     </div>
                                 ))}
                             </div>

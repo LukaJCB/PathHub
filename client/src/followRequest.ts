@@ -17,8 +17,7 @@ import {
   joinGroupWithExtensions,
 } from "ts-mls"
 import { decodeKeyPackage, encodeKeyPackage } from "ts-mls/keyPackage.js"
-import { encodeWelcome, Welcome } from "ts-mls/welcome.js"
-import { LocalStore } from "./localStore"
+import { Welcome } from "ts-mls/welcome.js"
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions"
 import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
 import { FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
@@ -40,6 +39,18 @@ export function getAllFollowers(mlsGroup: ClientState): Uint8Array[] {
     if (node?.nodeType === 'leaf' && nodeToLeafIndex(toNodeIndex(n)) !== toLeafIndex(mlsGroup.privatePath.leafIndex)) {
       if (node.leaf.credential.credentialType !== 'basic') throw new Error("No good")
       result.push(node.leaf.credential.identity)
+    }
+  }
+  return result
+}
+
+export function getAllFollowersForNonOwner(mlsGroup: ClientState, userId: string): Uint8Array[] {
+  const result: Uint8Array[] = []
+  for (const node of mlsGroup.ratchetTree) {
+    if (node?.nodeType === 'leaf') {
+      if (node.leaf.credential.credentialType !== 'basic') throw new Error("No good")
+      const decoded = new TextDecoder().decode(node.leaf.credential.identity)
+      if (decoded !== userId) result.push(node.leaf.credential.identity)
     }
   }
   return result

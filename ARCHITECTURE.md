@@ -41,6 +41,15 @@ Additionally all interactions should be signed as well so that an owner couldn't
 All keys should be stored locally, but they also need to be accesible across devices.
 The keys can be encrypted locally using a PBKDF and then uploaded. On the other device they would log in to receive the encrypted keys from the server and then input the password to decrypt the ciphertext and have access to the keys.
 
+## State Management
+
+All data is owned by a single user, therefore we expect not to have any of the issues normally attributed to distributed state. 
+The source of truth should be the encrypted state on the server.
+All state transitions therefore occur using HTTP.
+The server doesn't and cannot know exactly how the state is changing so it on the client to ensure that every state transition is sent in a single HTTP request.
+The server then guarantees that everything sent in the HTTP request is stored in a single transaction, so that no failure state can ever corrupt the data.
+
+
 ## Local Search/Aggregation
 
 The client will create an index of all of your content locally, encrypt it like any other post and store the key and objectId as an additional item on the post manifest.
@@ -61,11 +70,14 @@ This JWT can be used to access the storage and message broker services.
 
 ### Storage Service
 
-This service stores encrypted binary blobs along with an userId marked as the owner, a key for authenticating reads and a nonce.
-Every blob is indexed by a randomly generated 128 bit value.
-The api allows to create or update a blob using a PUT endoint and allows retrieving via a GET endpoint. 
-Updating a blob is only possible if the userId in the JWT passed in the request matches the owner of the blob.
-The GET endpoint requires passing the key, otherwise the service will return a 404 as if the blob blob didn't exist.
+This service stores encrypted binary blobs along with an userId marked as the owner and a nonce.
+It uses a model of immutable data with mutable pointers.
+Every pointer is a 128 bit random value that is stored inside a PostgresDB table.
+The table marks the owner and can thus restrict access to only those users who the owner explictly allows.
+The owner is also the only one who can update the pointer to point to a new blob.
+All blobs are referenced by a 256 bit hash of the blob, this allows for idempotency.
+The service has transactional semantics for any amount of data that is passed to it within a single call.
+This is achieved by first storing all the blobs in the object storage and only once everything is stored, it will update the Postgres table to point the pointers to the new values.
 
 ### Message Broker Service
 
