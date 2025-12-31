@@ -1,4 +1,4 @@
-import {Comment, PostManifestPage, PostMeta, StorageIdentifier} from "pathhub-client/src/manifest.js"
+import {InteractionComment, PostManifestPage, PostMeta, StorageIdentifier} from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react";
 import { useAuthRequired } from "./useAuth";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
@@ -13,6 +13,7 @@ import MapLibreRouteMap from "./MapLibreView";
 import { getAvatarImageUrl } from "./App";
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 import { getUserInfo } from "pathhub-client/src/userInfo.js";
+import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js";
 
 
 export const PostView = () => {
@@ -23,11 +24,12 @@ export const PostView = () => {
     const page = parseInt(params.page!)
     const profileUserId = params.userId!
     const rs = createRemoteStore(createContentClient("/storage", user.token))
+    const messager: MessageClient = createMessageClient("/messaging", user.token)
     const [canView, setCanView] = useState(true)
     const [post, setPost] = useState<PostMeta | null>(null)
     const [postManifestPage, setPostManifestPage] = useState<[PostManifestPage, StorageIdentifier] | null>(null)
     const [imageUrls, setImageUrls] = useState<string[]>([])
-    const [comments, setComments] = useState<Comment[]>([])
+    const [comments, setComments] = useState<InteractionComment[]>([])
     const [likes, setLikes] = useState(0)
     const [userHasLiked, setUserHasLiked] = useState(false)
     const [gpxData, setGpxData] = useState<[number, number, number][] | null>(null)
@@ -85,32 +87,6 @@ export const PostView = () => {
                 }
                 
                 setLikes(p!.totalLikes)
-                const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
-                const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
-                const username = profileUserId === user.id ? user.name : userInfo.info.username
-                if (avatar) { setAvatar(avatar) }
-                if (username) { setUsername(username)}
-
-
-                //todo combine this with fetching the post author username & avatar
-                const commentAuthors: Set<string> = new Set()
-                decodedComments.forEach(c => commentAuthors.add(c.author))
-
-                const commentUsernames = new Map<string, string>()
-                const commentAvatars = new Map<string, string>()
-                //todo parallelize this
-                for (const author of commentAuthors) {
-                    const authorInfo = await getUserInfo(author, rs.client, createAuthenticationClient("/auth"), user.token)
-                    if (authorInfo.info) {
-                        commentUsernames.set(author, authorInfo.info.username)
-                    }
-                    const authorAvatar = getAvatarImageUrl(authorInfo)
-                    if (authorAvatar) {
-                        commentAvatars.set(author, authorAvatar)
-                    }
-                }
-                setCommentUsernames(commentUsernames)
-                setCommentAvatars(commentAvatars)
             }
            
         }
@@ -120,14 +96,47 @@ export const PostView = () => {
         };
     }, [])
 
+    useEffect(() => {
+        const fetchData = async () => {
+            const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
+            const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
+            const username = profileUserId === user.id ? user.name : userInfo.info.username
+            if (avatar) { setAvatar(avatar) }
+            if (username) { setUsername(username)}
+
+
+            //todo combine this with fetching the post author username & avatar
+            const commentAuthors: Set<string> = new Set()
+            comments.forEach(c => commentAuthors.add(c.author))
+
+            const commentUsernames = new Map<string, string>()
+            const commentAvatars = new Map<string, string>()
+            //todo parallelize this
+            for (const author of commentAuthors) {
+                const authorInfo = await getUserInfo(author, rs.client, createAuthenticationClient("/auth"), user.token)
+                if (authorInfo.info) {
+                    commentUsernames.set(author, authorInfo.info.username)
+                }
+                const authorAvatar = getAvatarImageUrl(authorInfo)
+                if (authorAvatar) {
+                    commentAvatars.set(author, authorAvatar)
+                }
+            }
+            setCommentUsernames(commentUsernames)
+            setCommentAvatars(commentAvatars)
+        }
+        fetchData()
+    }, [comments])
+
 
     async function addComment(e: FormEvent) {
         e.preventDefault()
         const isOwnPost = profileUserId === user.id
 
-        const {newManifest, comment} = await commentPost(commentText, post!, 
+        const {newManifest, comment} = await commentPost(commentText, post!, profileUserId,
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
-             user.ownGroupState, isOwnPost, user.id, rs, 
+             user.ownGroupState, user.id, rs,
+             messager,
              postManifestPage![0], 
              postManifestPage![1],
              user.postManifest,

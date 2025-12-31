@@ -3,6 +3,7 @@ import {
   ClientState,
   createGroup,
   Credential,
+  decodeGroupState,
   defaultCapabilities,
   defaultCryptoProvider,
   defaultLifetime,
@@ -14,10 +15,10 @@ import {
 } from "ts-mls"
 import { clientConfig } from "./mlsConfig"
 import { deriveGroupIdFromUserId } from "./mlsInteractions";
-import { PostManifestPage, Manifest, PostManifest } from "./manifest";
+import { PostManifestPage, Manifest, PostManifest, FollowerGroupState } from "./manifest";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptPostManifestPage, retrieveAndDecryptGroupState, retrieveAndDecryptManifest, uint8ToBase64Url, retrieveAndDecryptPostManifest } from "./remoteStore";
 import { encryptAndStore, encryptAndStoreWithPostSecret } from "./createPost";
-import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest } from "./codec/encode";
+import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest, encodeFollowerGroupState } from "./codec/encode";
 import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
 
@@ -83,12 +84,14 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
   const y = await retrieveAndDecryptManifest(rs, manifestId, masterKey)
   if (y) {
 
-    const [[postManifest, page],gm] = await Promise.all([
+    const [[postManifest, page],followerGroupState] = await Promise.all([
       retrievePostManifestAndPage(rs, y),
       retrieveAndDecryptGroupState(rs, uint8ToBase64Url(await getGroupStateIdFromManifest(y, userId)), masterKey)
     ])
 
-    return [y, postManifest!, page!, gm!, getKeyPairFromGroupState(gm!)]
+    const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+
+    return [y, postManifest!, page!, groupState, getKeyPairFromGroupState(groupState)]
   } else {
 
     const page: PostManifestPage = {
@@ -98,6 +101,10 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
 
     const [groupState, keyPair] = await initGroupState(userId)
 
+    const followerGroupState: FollowerGroupState = {
+      groupState: encodeClientState(groupState),
+      cachedInteractions: new Map()
+    }
 
     const gmStorageId = crypto.getRandomValues(new Uint8Array(32))
     const frStorageId = crypto.getRandomValues(new Uint8Array(32))
@@ -114,7 +121,7 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
     const [[manifest, postManifest]] = await Promise.all([
       initManifest(groupState, impl, rs, page, gmStorageId, frStorageId, masterKey, manifestId),
       rs.client.putAvatar(avatar, "image/svg+xml"),
-      encryptAndStoreWithPostSecret(masterKey, rs, encodeClientState(groupState), gmStorageId),
+      encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowerGroupState(followerGroupState), gmStorageId),
       encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowRequests({incoming:[], outgoing:[]}), frStorageId)
     ])
     

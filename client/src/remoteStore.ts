@@ -1,8 +1,8 @@
-import { PostManifestPage, Manifest, StorageIdentifier, PostManifest, FollowerManifest } from "./manifest"
+import { PostManifestPage, Manifest, StorageIdentifier, PostManifest, FollowerManifest, FollowerGroupState } from "./manifest"
 import { StorageClient } from "./http/storageClient"
 import { deriveAccessAndEncryptionKeys, derivePostSecret } from "./createPost"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
-import { decodePostManifestPage, decodeClientState, decodeManifest, decodePostManifest, decodeFollowerManifest } from "./codec/decode"
+import { decodePostManifestPage, decodeClientState, decodeManifest, decodePostManifest, decodeFollowerManifest, decodeFollowerGroupState } from "./codec/decode"
 import { CiphersuiteImpl, ClientState } from "ts-mls"
 
 //TODO ideally there should be a single storage call that stores it locally and also stores it encrypted remote
@@ -87,11 +87,11 @@ export async function retrieveAndDecryptPostManifestPage(rs: RemoteStore, id: St
 
 
 
-export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: string, masterKey: Uint8Array): Promise<ClientState | undefined> {
+export async function retrieveAndDecryptGroupState(rs: RemoteStore, storageId: string, masterKey: Uint8Array): Promise<FollowerGroupState | undefined> {
     try {
       const decrypted = await retrieveAndDecryptContent(rs, [storageId, masterKey]);
 
-      return decodeClientState(new Uint8Array(decrypted));
+      return decodeFollowerGroupState(new Uint8Array(decrypted));
     } catch (e) {
       //todo proper error handling
       return undefined

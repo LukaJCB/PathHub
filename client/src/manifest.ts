@@ -12,6 +12,11 @@ export interface Manifest {
   followRequests: Uint8Array
 }
 
+export interface FollowerGroupState {
+  groupState: Uint8Array,
+  cachedInteractions: Map<string, Interaction[]>
+}
+
 
 //for every user you're following you should store their post manifest id&key as well as their current page id&key
 //why do we need both? shouldn't the post manifest be enough?
@@ -32,9 +37,9 @@ export interface PostMeta {
   date: number
   metrics: DerivedMetrics
   totalLikes: number
-  sampleLikes: Like[]
+  sampleLikes: InteractionLike[]
   totalComments: number
-  sampleComments:Comment[]
+  sampleComments: InteractionComment[]
   main: StorageIdentifier
   comments: StorageIdentifier | undefined
   likes: StorageIdentifier | undefined
@@ -45,21 +50,23 @@ export interface PostMeta {
 //TODO should these be initalized with empty objects in storage instead?
 
 //todo add commentId?
-export interface Comment {
+export interface BaseInteraction {
   postId: string
   author: string
   date: number
-  text: string
   signature: Uint8Array
 }
 
-//todo add likeId?
-export interface Like {
-  postId: string
-  author: string
-  date: number
-  signature: Uint8Array
+export interface InteractionComment extends BaseInteraction {
+  kind: "comment"
+  text: string
 }
+
+export interface InteractionLike extends BaseInteraction {
+  kind: "like"
+}
+
+export type Interaction = InteractionComment | InteractionLike
 
 export interface Totals {
   totalPosts: number

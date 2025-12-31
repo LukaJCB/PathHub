@@ -16,7 +16,6 @@
     "verify": "pnpm build && pnpm format:check && pnpm verify-madge && pnpm lint && pnpm test"
   },
   "dependencies": {
-    "@noble/curves": "2.0.1",
     "@noble/hashes": "2.0.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.90.16",
@@ -33,7 +32,7 @@
     "react-leaflet": "^5.0.0",
     "react-router": "^7.9.6",
     "tailwindcss": "^4.1.18",
-    "ts-mls": "1.5.0"
+    "ts-mls": "1.5.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

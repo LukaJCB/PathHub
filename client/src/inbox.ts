@@ -1,15 +1,22 @@
-import { CiphersuiteImpl, ClientState, decodeMlsMessage, emptyPskIndex, processPrivateMessage } from "ts-mls";
+import { CiphersuiteImpl, ClientState, decodeGroupState, decodeMlsMessage, emptyPskIndex, encodeGroupState, processPrivateMessage } from "ts-mls";
 import { MessageClient } from "./http/messageClient";
 import { MLSMessage } from "ts-mls/message.js";
 import { FollowRequests, processAllowFollow, receiveFollowRequest } from "./followRequest";
-import { FollowerManifest, Manifest } from "./manifest";
-import { RemoteStore, retrieveAndDecryptGroupState, uint8ToBase64Url } from "./remoteStore";
-import { getGroupStateIdFromManifest } from "./init";
-import { decodeMessagePublic } from "./codec/decode";
+import { FollowerManifest, Manifest, PostManifest, PostManifestPage, PostMeta, StorageIdentifier } from "./manifest";
+import { base64urlToUint8, RemoteStore, retrieveAndDecryptGroupState, retrieveAndDecryptPostManifestPage, uint8ToBase64Url } from "./remoteStore";
+import { decodeMessage, decodeMessagePublic } from "./codec/decode";
+import { clientConfig } from "./mlsConfig";
+import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
+import { encodeComments, encodeFollowerGroupState, encodeLikes } from "./codec/encode";
+import { updateCommentList, updateLikeList } from "./postInteraction";
+import { getPageForUser } from "./profile";
 
 
-export async function processIncoming(client: MessageClient, manifest: Manifest,
+export async function processIncoming(client: MessageClient, manifest: Manifest, 
+    postManifest: PostManifest,
+    postManifestPage: PostManifestPage,
     manifestId: Uint8Array,
+    ownGroupState: ClientState,
     followRequests: FollowRequests, 
     userId: string,
     masterKey: Uint8Array,
@@ -18,15 +25,17 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | un
     const messages = await client.receiveMessages()
 
     console.log(`Fetched ${messages.length} message, processing...`)
+    //need to apply this to more things that will get updated...
     let currentFollowRequests = followRequests
     let currentManifest = manifest
     let currentFollowerManifest = undefined
     let currentClientState = undefined
     for (const m of messages) {
         const mp = decodeMessagePublic(m.payload)
+        console.log(mp)
         if (mp.kind === 'GroupMessage') {
           const message = decodeMlsMessage(mp.mlsMessage, 0)![0]
-          const result = await processMlsMessage(message, m.sender, userId, currentManifest, manifestId, masterKey, currentFollowRequests, remoteStore, impl)
+          const result = await processMlsMessage(message, ownGroupState, m.sender, userId, postManifest, postManifestPage, currentManifest, manifestId, masterKey, currentFollowRequests, remoteStore, impl)
 
           currentFollowRequests = result[0]
           currentManifest = result[1]
@@ -54,9 +63,12 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | un
 
 
 export async function processMlsMessage(
-    msg: MLSMessage, 
+    msg: MLSMessage,
+    mlsGroup: ClientState,
     sender: string, 
     userId: string,
+    postManifest: PostManifest,
+    postManifestPage: PostManifestPage,
     manifest: Manifest,
     manifestId: Uint8Array,
     masterKey: Uint8Array,
@@ -64,6 +76,7 @@ export async function processMlsMessage(
     remoteStore: RemoteStore,
     impl: CiphersuiteImpl
 ): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined]> {
+    console.log(msg)
     switch (msg.wireformat) {
         case "mls_welcome": {
             const result = await processAllowFollow(sender, msg.welcome, followRequests, masterKey, manifest, manifestId, remoteStore, impl)
@@ -71,13 +84,82 @@ export async function processMlsMessage(
         }
         case "mls_private_message": {
             const groupStateId = manifest.groupStates.get(uint8ToBase64Url(msg.privateMessage.groupId))!
-            const groupState = await retrieveAndDecryptGroupState(remoteStore, uint8ToBase64Url(groupStateId), masterKey)
+            const followerGroupState = await retrieveAndDecryptGroupState(remoteStore, uint8ToBase64Url(groupStateId), masterKey)
+            const groupState = {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig}
             //todo only allow commits from group owner
-            const result = await processPrivateMessage(groupState!, msg.privateMessage, emptyPskIndex, impl) 
+            const result = await processPrivateMessage(groupState, msg.privateMessage, emptyPskIndex, impl) 
 
+            console.log(result)
             if (result.kind === "applicationMessage") {
-                
-                result.message
+                const message = decodeMessage(result.message)
+                console.log(message)
+                if (message.kind === "Interaction") {
+
+                    console.log(message)
+                    console.log(userId)
+                    if (userId === message.posterId) {
+                        if (message.interaction.kind === "comment") {
+
+
+                            const comment = message.interaction
+                            const { meta,pageId} = (await findPostMeta(postManifestPage, postManifest, message.interaction.postId, remoteStore))!
+                            const comments = await updateCommentList(meta, remoteStore, comment);
+                                
+                            const commentsEncoded = encodeComments(comments)
+                        
+                            const storageIdentifier = await encryptAndStore(mlsGroup,impl, remoteStore, commentsEncoded, meta?.comments ? base64urlToUint8(meta.comments[0]) : undefined)
+                        
+                            const newMeta: PostMeta = {
+                                ...meta,
+                                totalComments: meta.totalComments + 1,
+                                sampleComments: [...meta.sampleComments.slice(1, meta.sampleComments.length), comment],
+                                comments: storageIdentifier
+                            }
+                        
+                            //todo send mls message to everyone who has previously commented on the post?
+                            const [, , newManifest] = await replaceInPage(mlsGroup, impl, postManifestPage, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
+                        
+                            return [followRequests, newManifest, undefined, result.newState]
+                        } else {
+                            const like = message.interaction
+                            const { meta,pageId} = (await findPostMeta(postManifestPage, postManifest, message.interaction.postId, remoteStore))!
+                            const likes = await updateLikeList(meta, remoteStore, like);
+                                
+                            const likesEncoded = encodeLikes(likes)
+                        
+                            const storageIdentifier = await encryptAndStore(mlsGroup,impl, remoteStore, likesEncoded, meta?.likes ? base64urlToUint8(meta.likes[0]) : undefined)
+                        
+                            const newMeta: PostMeta = {
+                                ...meta,
+                                totalLikes: meta.totalLikes + 1,
+                                sampleLikes: [...meta.sampleLikes.slice(1, meta.sampleLikes.length), like],
+                                comments: storageIdentifier
+                            }
+                        
+                            //todo send mls message to everyone who has previously commented on the post?
+                            const [, , newManifest] = await replaceInPage(mlsGroup, impl, postManifestPage, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
+                        
+                            return [followRequests, newManifest, undefined, result.newState]
+                        }
+                    } else {
+                    
+                        const interactions = followerGroupState!.cachedInteractions.get(message.interaction.postId) ?? []
+
+                        const newInteractions = [...interactions, message.interaction]
+
+                        const newMap = followerGroupState?.cachedInteractions.set(message.interaction.postId, newInteractions)
+
+                        const newFollowerGroupState = { groupState: encodeGroupState(result.newState), cachedInteractions: newMap!}
+
+                        await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(newFollowerGroupState), groupStateId)
+                    }
+                }
+            } else if (result.kind === "newState") {
+                const newFollowerGroupState = {...followerGroupState!, groupState: encodeGroupState(result.newState)}
+
+                await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(newFollowerGroupState), groupStateId)
+                //todo flush cachedInteractions whenever a new commit arrives
+
             }
 
             return [followRequests, manifest, undefined, result.newState]
@@ -90,4 +172,17 @@ export async function processMlsMessage(
     }
 }
 
+export async function findPostMeta(page: PostManifestPage, postManifest: PostManifest, postId: string, rs: RemoteStore): Promise<{meta: PostMeta, pageId: StorageIdentifier}  | undefined> {
 
+    const inPage = page.posts.find(p => p.main[0] === postId)
+    if (inPage) {
+        return { meta: inPage, pageId: postManifest.currentPage }
+    }
+
+    for (const p of postManifest.pages) {
+        const page = await retrieveAndDecryptPostManifestPage(rs, p.page)
+        const found = page?.posts.find(p => p.main[0] === postId)
+        if (found) return { meta: found, pageId: p.page }
+
+    }
+}

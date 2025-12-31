@@ -25,8 +25,8 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
-        <MessageProcessor/>
         <BrowserRouter>
+          <MessageProcessor/>
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<ProtectedRoute><App /></ProtectedRoute>} />

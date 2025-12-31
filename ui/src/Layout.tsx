@@ -6,7 +6,7 @@ import imgUrl from './assets/logo.png';
 export function Layout() {
   const {logout, user} = useAuth()
   const initials = user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : ''
-  const isProcessing = useIsFetching({ queryKey: ["messages"]}) > 0;
+  const isProcessing = useIsFetching({ queryKey: ["messages"], exact: false }) > 0;
   return (
     <>
       <header className="bg-white shadow-md sticky top-0 z-50">

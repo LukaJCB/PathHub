@@ -30,7 +30,7 @@
     "idb": "^8.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "ts-mls": "1.5.0"
+    "ts-mls": "1.5.1"
   },
   "devDependencies": {
     "@eslint/js": "9.37.0",
@@ -65,5 +65,5 @@
     "verify-madge": "madge --extensions ts --circular src",
     "verify": "pnpm build && pnpm format:check && pnpm verify-madge && pnpm lint && pnpm test"
   },
-  "packageManager": "pnpm@10.17.1"
+  "packageManager": "pnpm@10.27.0"
 }

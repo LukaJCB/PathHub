@@ -20,9 +20,9 @@ import { decodeKeyPackage, encodeKeyPackage } from "ts-mls/keyPackage.js"
 import { Welcome } from "ts-mls/welcome.js"
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions"
 import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
-import { FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
+import { FollowerGroupState, FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
 import { base64urlToUint8, RemoteStore, uint8ToBase64Url } from "./remoteStore"
-import { encodeFollowerManifest, encodeFollowRequests, encodeClientState, encodeManifest, encodeMessagePublic, encodePostManifest, encodePostManifestPage, encodePrivateKeyPackage } from "./codec/encode"
+import { encodeFollowerManifest, encodeFollowRequests, encodeClientState, encodeManifest, encodeMessagePublic, encodePostManifest, encodePostManifestPage, encodePrivateKeyPackage, encodeFollowerGroupState } from "./codec/encode"
 import { derivePostSecret, encryptAndStore, encryptAndStoreWithPostSecret } from "./createPost"
 import { decodeFollowerManifest, decodePrivateKeyPackage } from "./codec/decode"
 import { SignatureKeyPair } from "./init"
@@ -192,11 +192,16 @@ export async function allowFollow(
     version: "mls10"
   }
 
+  const followerGroupState: FollowerGroupState = {
+    groupState: encodeClientState(newGroupState),
+    cachedInteractions: new Map()
+  }
+
   const [pmid, pmpid] = await Promise.all([
     encryptAndStore(newGroupState, impl, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0])),
     encryptAndStore(newGroupState, impl, remoteStore, encodePostManifestPage(page), base64urlToUint8(postManifest.currentPage[0])),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeClientState(newGroupState), groupStateStorageId),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), groupStateStorageId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),
     messageClient.sendMessage({ payload: encodeMessagePublic({ mlsMessage: encodeMlsMessage(mlsWelcome), kind: "GroupMessage"}), recipients: [followerId] }),
     recipients.length > 0 ? messageClient.sendMessage({ payload:encodeMessagePublic({ mlsMessage: encodeMlsMessage(commitResult.commit), kind: "GroupMessage"}), recipients: recipients }) : Promise.resolve(),
@@ -242,6 +247,10 @@ export async function processAllowFollow(
     outgoing: followRequests.outgoing.filter(fr => fr.followeeId !== followeeId)
   }
 
+  const followerGroupState: FollowerGroupState = {
+    groupState: encodeClientState(group) ,cachedInteractions: new Map()
+  }
+
   const newGroupStateStorageId = crypto.getRandomValues(new Uint8Array(32))
 
   const newGroupStateManifest = 
@@ -257,7 +266,7 @@ export async function processAllowFollow(
   }
 
   await Promise.all([
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeClientState(group), newGroupStateStorageId),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), newGroupStateStorageId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, followerManifestExtension.extensionData, followerManifestStorageId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId)

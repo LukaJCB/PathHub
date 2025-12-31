@@ -58,6 +58,93 @@ export async function build(config: {
     } 
   }
 
+  const batchPutContentSchema = {
+    schema: {
+      params: {
+        type: "object",
+      },
+      response: {
+        204: {
+          type: "object",
+        },
+        401: {
+          type: "object",
+        },
+        403: {
+          type: "object",
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  }
+
+  interface Payload {
+    nonce: string,
+    body: Uint8Array,
+    id: string
+  }
+
+  fastify.post(
+    "/content/batchPut",
+    batchPutContentSchema,
+    async (req, reply) => {
+      const user = await authenticate(req.headers.authorization)
+      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+      if (req.headers["content-type"] !== "application/octet-stream") {
+        return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
+      }
+
+      const payloads = decode(await streamToBuffer(req.raw)) as Payload[]
+
+      for (const payload of payloads) {
+        const nonce = payload.nonce
+
+        const objectId = payload.id
+        const key = shardObjectKey(objectId)
+
+        try {
+          const head = await s3.send(
+            new HeadObjectCommand({
+              Bucket: config.bucketName,
+              Key: key,
+            }),
+          )
+
+          const owner = head.Metadata?.["userid"]
+          if (owner && owner !== user.userId) {
+            return reply.code(403).send(encode({ error: "This object is restricted" }))
+          }
+        } catch (err) {
+          if (isErrorWithName(err) && err.name !== "NotFound") {
+            throw err
+          }
+        }
+
+        const buffer = payload.body
+
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: config.bucketName,
+            Key: key,
+            Body: buffer,
+            ContentType: "application/octet-stream",
+            Metadata: { nonce: nonce, userId: user.userId },
+          }),
+        )
+      }
+
+      
+
+      return reply.code(204).send()
+    },
+  )
+
   const putContentSchema = {
     schema: {
       params: {

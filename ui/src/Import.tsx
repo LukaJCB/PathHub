@@ -14,6 +14,7 @@ import { encodeRoute } from "pathhub-client/src/codec/encode.js";
 import { decodeBlobWithMime, encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import { ThumbnailRenderer } from "./ThumbnailRenderer";
 import { Link } from "react-router";
+import { updateAvatar } from "pathhub-client/src/userInfo.js";
 
 export interface ActivityRecord {
   "Activity Count": string;
@@ -169,6 +170,7 @@ export function BulkImport() {
     const blob = await activities.getData(new BlobWriter("text/csv"))
     const text = await blob.text();
     const result = Papa.parse<ActivityRecord>(text, { header: true }).data
+      .slice(0, 25)
     setTotal(result.length)
 
     const activityMap: Record<string, Entry> = entries.reduce((acc, cur) => {
@@ -185,12 +187,22 @@ export function BulkImport() {
 
     const ls = await makeStore(user.id)
     const rs = createRemoteStore(createContentClient("/storage", user.token))
+
+    
+    const profilePic = entries.find(e => e.filename === "profile.jpg")
+    if (profilePic.directory === true) throw new Error("Jpg is dir")
+    
+    const b = await profilePic.getData(new BlobWriter("image/jpeg"))
+    await updateAvatar(await b.bytes(), b.type, rs.client)
+    const avatarUrl = URL.createObjectURL(b)
+    updateUser({avatarUrl})
+
     const thumbRenderer = new ThumbnailRenderer()
     let currentPage = user.currentPage
     let currentPostManifest = user.postManifest
     let currentManifest = user.manifest
     let currentGroup = user.ownGroupState
-    for (const [n, record] of result.slice(0, 4).entries()) {
+    for (const [n, record] of result.entries()) {
         
         if (!record.Filename || record.Filename === "#error#") {
             continue;

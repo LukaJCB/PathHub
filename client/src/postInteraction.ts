@@ -1,20 +1,25 @@
-import { Comment, PostManifestPage, Like, PostMeta, StorageIdentifier, PostManifest, Manifest } from "./manifest";
-import {  CiphersuiteImpl, ClientState } from "ts-mls";
-import { encryptAndStore, replaceInPage } from "./createPost";
-import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent } from "./remoteStore";
+import { PostManifestPage, PostMeta, StorageIdentifier, PostManifest, Manifest, FollowerGroupState, InteractionComment, InteractionLike } from "./manifest";
+import {  CiphersuiteImpl, ClientState, createApplicationMessage, decodeGroupState, encodeGroupState, encodeMlsMessage } from "ts-mls";
+import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
+import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent, retrieveAndDecryptGroupState, uint8ToBase64Url } from "./remoteStore";
 import { toBufferSource } from "ts-mls/util/byteArray.js";
-import { encodeComment, encodeComments, encodeCommentTbs, encodeLike, encodeLikes, encodeLikeTbs } from "./codec/encode";
+import { encodeComments, encodeCommentTbs, encodeFollowerGroupState, encodeLike, encodeLikes, encodeLikeTbs, encodeMessage, encodeMessagePublic } from "./codec/encode";
 import { decodeComments, decodeLikes } from "./codec/decode";
+import { Message, MessagePublic } from "./message";
+import { MessageClient } from "./http/messageClient";
+import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions";
+import { clientConfig } from "./mlsConfig";
 
 
 export async function commentPost(
   text: string,
   meta: PostMeta,
+  posterId: string,
   signingKey: CryptoKey,
-  mlsGroup: ClientState,
-  ownPost: boolean,
+  ownGroupState: ClientState,
   authorId: string,
   remoteStore: RemoteStore,
+  messageClient: MessageClient,
   page: PostManifestPage,
   pageId: StorageIdentifier,
   postManifest: PostManifest,
@@ -22,7 +27,7 @@ export async function commentPost(
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   impl: CiphersuiteImpl
-): Promise<{ newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined; comment: Comment; }> {
+): Promise<{ newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined; comment: InteractionComment }> {
   const commentTbs: CommentTbs = {
     postId: meta.main[0],
     author: authorId,
@@ -32,16 +37,13 @@ export async function commentPost(
 
   const comment = await signComment(signingKey, commentTbs)
 
-  const content = encodeComment(comment)
-
-  //send comment to mls group
-
-  if (ownPost){
+ 
+  if (authorId === posterId){
     const comments = await updateCommentList(meta, remoteStore, comment);
     
     const commentsEncoded = encodeComments(comments)
 
-    const storageIdentifier = await encryptAndStore(mlsGroup,impl, remoteStore, commentsEncoded, meta.comments ? base64urlToUint8(meta.comments[0]) : undefined)
+    const storageIdentifier = await encryptAndStore(ownGroupState,impl, remoteStore, commentsEncoded, meta.comments ? base64urlToUint8(meta.comments[0]) : undefined)
 
     const newMeta: PostMeta = {
       ...meta,
@@ -51,17 +53,49 @@ export async function commentPost(
     }
 
     //todo send mls message to everyone who has previously commented on the post
-    const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
+    const [newPage, newPostManifest, newManifest] = await replaceInPage(ownGroupState, impl, page, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
 
     return { newManifest: [newManifest, newPostManifest, newPage, newMeta], comment }
+  } else {
+      const msg : Message = {
+      kind: "Interaction",
+      interaction: comment,
+      posterId
+    }
+
+    
+
+    const followerGroupStateId = manifest.groupStates.get(uint8ToBase64Url(await deriveGroupIdFromUserId(posterId)))!
+    const followerGroupState = await retrieveAndDecryptGroupState(remoteStore, uint8ToBase64Url(followerGroupStateId), masterKey)
+    const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+    const res = await createApplicationMessage(groupState, encodeMessage(msg), impl)
+
+    const mp: MessagePublic = {
+      kind: "GroupMessage",
+      mlsMessage: encodeMlsMessage({ wireformat: "mls_private_message", version: "mls10", privateMessage: res.privateMessage })
+    }
+
+    const newFollowerGroupState: FollowerGroupState = {
+      ...followerGroupState!,
+      groupState: encodeGroupState(res.newState)
+    }
+
+    console.log(recipientsFromMlsState([], groupState))
+    await Promise.all([
+      messageClient.sendMessage({ payload: encodeMessagePublic(mp), recipients: recipientsFromMlsState([authorId], groupState) }),
+      encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(newFollowerGroupState), followerGroupStateId)
+    ])
+     
+    return { comment, newManifest: undefined }
+
   }
 
-  return { comment, newManifest: undefined}
+  
 
 }
 
 
-async function updateCommentList(meta: PostMeta, remoteStore: RemoteStore, comment: Comment): Promise<Comment[]> {
+export async function updateCommentList(meta: PostMeta, remoteStore: RemoteStore, comment: InteractionComment): Promise<InteractionComment[]> {
   if (meta.comments) {
     const decrypted = await retrieveAndDecryptContent(remoteStore, meta.comments);
 
@@ -88,7 +122,7 @@ export async function likePost(
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   impl: CiphersuiteImpl
-): Promise<{ like: Like, newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined}> {
+): Promise<{ like: InteractionLike, newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined}> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
     author: authorId,
@@ -169,7 +203,7 @@ export async function unlikePost(
 }
 
 
-async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: Like): Promise<Like[]> {
+export async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: InteractionLike): Promise<InteractionLike[]> {
   if (meta.likes) {
     const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes);
 
@@ -182,7 +216,7 @@ async function updateLikeList(meta: PostMeta, remoteStore: RemoteStore, like: Li
   }
 }
 
-async function removeFromLikeList(meta: PostMeta, remoteStore: RemoteStore, authorId: string): Promise<Like[]> {
+async function removeFromLikeList(meta: PostMeta, remoteStore: RemoteStore, authorId: string): Promise<InteractionLike[]> {
   if (meta.likes) {
     const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes);
 
@@ -194,7 +228,7 @@ async function removeFromLikeList(meta: PostMeta, remoteStore: RemoteStore, auth
   }
 }
 
-async function signComment(signingKey: CryptoKey, tbs: CommentTbs): Promise<Comment> {
+async function signComment(signingKey: CryptoKey, tbs: CommentTbs): Promise<InteractionComment> {
   const encoded = encodeCommentTbs(tbs)
 
   const signature = await crypto.subtle.sign(
@@ -205,7 +239,7 @@ async function signComment(signingKey: CryptoKey, tbs: CommentTbs): Promise<Comm
       toBufferSource(encoded),
     )
 
-  return {...tbs, signature: new Uint8Array(signature)}
+  return {...tbs, signature: new Uint8Array(signature), kind: "comment"}
 }
 
 export interface CommentTbs  {
@@ -215,7 +249,7 @@ export interface CommentTbs  {
   text: string
 }
 
-async function signLike(signingKey: CryptoKey, tbs: LikeTbs): Promise<Like> {
+async function signLike(signingKey: CryptoKey, tbs: LikeTbs): Promise<InteractionLike> {
   const encoded = encodeLikeTbs(tbs)
 
   const signature = await crypto.subtle.sign(
@@ -226,7 +260,7 @@ async function signLike(signingKey: CryptoKey, tbs: LikeTbs): Promise<Like> {
       toBufferSource(encoded),
     )
 
-  return {...tbs, signature: new Uint8Array(signature)}
+  return {...tbs, signature: new Uint8Array(signature), kind: "like"}
 }
 
 

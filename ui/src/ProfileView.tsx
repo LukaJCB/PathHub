@@ -154,6 +154,7 @@ export const ProfileView: React.FC = () => {
                         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-8 text-center">
                             <h3 className="text-xl font-semibold text-gray-900 mb-4">🔒 Profile Private</h3>
                             <p className="text-gray-600 mb-6">You need to follow this user to see their activities.</p>
+                            {/*TODO this should just send the request instead of linking*/}
                             <Link to="/followRequests" className="inline-block px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
                                 Send Follow Request
                             </Link>

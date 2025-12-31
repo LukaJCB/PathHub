@@ -1,21 +1,20 @@
 import { decode } from "cbor-x";
-import { Comment, PostManifestPage, Like, Manifest, PostManifest, FollowerManifest } from "../manifest";
+import { PostManifestPage, Manifest, PostManifest, FollowerManifest, FollowerGroupState, InteractionComment, InteractionLike } from "../manifest";
 import { CommentTbs, LikeTbs } from "../postInteraction";
-import { ClientState, decodeGroupState, GroupState, PrivateKeyPackage } from "ts-mls";
-import { fromJsonString } from "ts-mls/codec/json.js";
+import { ClientState, decodeGroupState, PrivateKeyPackage } from "ts-mls";
 import { clientConfig } from "../mlsConfig";
 import { FollowRequests } from "../followRequest";
-import { MessagePublic } from "../message";
+import { Message, MessagePublic } from "../message";
 
 export function decodePostManifestPage(pm: Uint8Array): PostManifestPage {
     return decode(pm)
 }
 
-export function decodeComment(c: Uint8Array): Comment {
+export function decodeComment(c: Uint8Array): InteractionComment {
     return decode(c)
 }
 
-export function decodeComments(cs: Uint8Array): Comment[] {
+export function decodeComments(cs: Uint8Array): InteractionComment[] {
     return decode(cs)
 }
 
@@ -24,11 +23,11 @@ export function decodeCommentTbs(c: Uint8Array): CommentTbs {
 }
 
 
-export function decodeLike(l: Uint8Array): Like {
+export function decodeLike(l: Uint8Array): InteractionLike {
     return decode(l)
 }
 
-export function decodeLikes(ls: Uint8Array): Like[] {
+export function decodeLikes(ls: Uint8Array): InteractionLike[] {
     return decode(ls)
 }
 
@@ -62,7 +61,15 @@ export function decodeManifest(m: Uint8Array): Manifest {
     return decode(m)
 }
 
+export function decodeMessage(m: Uint8Array): Message {
+    return decode(m)
+}
+
 export function decodeFollowerManifest(m: Uint8Array): FollowerManifest {
+    return decode(m)
+}
+
+export function decodeFollowerGroupState(m: Uint8Array): FollowerGroupState {
     return decode(m)
 }
 

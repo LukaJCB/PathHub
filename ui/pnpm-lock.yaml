@@ -11,9 +11,6 @@ importers:
 
   .:
     dependencies:
-      '@noble/curves':
-        specifier: 2.0.1
-        version: 2.0.1
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
@@ -63,8 +60,8 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18
       ts-mls:
-        specifier: 1.5.0
-        version: 1.5.0(@noble/ciphers@2.0.1)(@noble/curves@2.0.1)
+        specifier: 1.5.1
+        version: 1.5.1(@noble/ciphers@2.0.1)(@noble/curves@2.0.1)
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -2547,8 +2544,8 @@ packages:
     resolution: {integrity: sha512-XyLVuhBVvdJTJr2FJJV2L1pc4MwSjMhcunRVgDE9k4wbb2ee7ORYnPewxMWUav12vxyfUM686MSGsqnVRIInuw==}
     engines: {node: '>=18'}
 
-  ts-mls@1.5.0:
-    resolution: {integrity: sha512-hfizW36GtJ69NrUDOLdAqErkP6jSEJ/N15siFrTRiDOXsCEAQcu2AiJiXootj3xWORqc94Zr4U8XTLNblKJq4A==}
+  ts-mls@1.5.1:
+    resolution: {integrity: sha512-YfRO1Wuy0Fpo/eunzV/TyE7rPAKEZz6eOLzJtgu6khP3axm2Dc09AT6mlP2N3213teCa8jhTAeTYjG0p4AFqgA==}
     peerDependencies:
       '@hpke/chacha20poly1305': 1.7.1
       '@hpke/hybridkem-x-wing': 0.6.1
@@ -3115,6 +3112,7 @@ snapshots:
   '@noble/curves@2.0.1':
     dependencies:
       '@noble/hashes': 2.0.1
+    optional: true
 
   '@noble/hashes@2.0.1': {}
 
@@ -5341,7 +5339,7 @@ snapshots:
       '@ts-graphviz/common': 2.1.5
       '@ts-graphviz/core': 2.0.7
 
-  ts-mls@1.5.0(@noble/ciphers@2.0.1)(@noble/curves@2.0.1):
+  ts-mls@1.5.1(@noble/ciphers@2.0.1)(@noble/curves@2.0.1):
     dependencies:
       '@hpke/core': 1.7.5
       '@noble/ciphers': 2.0.1
