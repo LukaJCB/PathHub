@@ -54,7 +54,7 @@ export const ProfileView: React.FC = () => {
         }
 
        fetchData()
-    }, [params])
+    }, [params, user])
 
     const initials = user?.name 
         ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()

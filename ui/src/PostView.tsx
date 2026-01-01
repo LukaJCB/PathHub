@@ -79,7 +79,7 @@ export const PostView = () => {
 
                 setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
                 const decodedComments = comments ? decodeComments(new Uint8Array(comments)) : []
-                setComments(decodedComments)
+                setComments(decodedComments.sort((a, b) => a.date - b.date))
 
                 if (likes) {
                     const ls = decodeLikes(new Uint8Array(likes))
@@ -94,7 +94,7 @@ export const PostView = () => {
         return () => {
           imageUrls.forEach(URL.revokeObjectURL);
         };
-    }, [])
+    }, [user])
 
     useEffect(() => {
         const fetchData = async () => {

@@ -9,7 +9,6 @@ import { clientConfig } from "./mlsConfig";
 import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
 import { encodeComments, encodeFollowerGroupState, encodeLikes } from "./codec/encode";
 import { updateCommentList, updateLikeList } from "./postInteraction";
-import { getPageForUser } from "./profile";
 
 
 export async function processIncoming(client: MessageClient, manifest: Manifest, 
@@ -21,13 +20,15 @@ export async function processIncoming(client: MessageClient, manifest: Manifest,
     userId: string,
     masterKey: Uint8Array,
     remoteStore: RemoteStore,
-impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined]> {
+impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, PostManifest, PostManifestPage, FollowerManifest | undefined, ClientState | undefined]> {
     const messages = await client.receiveMessages()
 
     console.log(`Fetched ${messages.length} message, processing...`)
     //need to apply this to more things that will get updated...
     let currentFollowRequests = followRequests
     let currentManifest = manifest
+    let currentPage = postManifestPage
+    let currentPostManifest = postManifest
     let currentFollowerManifest = undefined
     let currentClientState = undefined
     for (const m of messages) {
@@ -40,6 +41,8 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | un
           currentFollowRequests = result[0]
           currentManifest = result[1]
           currentFollowerManifest = result[2] ?? currentFollowerManifest
+          currentPage = result[4]
+          currentPostManifest = result[5]
           currentClientState = result[3] ?? currentClientState
         } else {
           
@@ -57,7 +60,7 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, FollowerManifest | un
     console.log(`Finished processing ${messages.length} messages`)
 
    
-    return [currentFollowRequests, currentManifest, currentFollowerManifest, currentClientState]
+    return [currentFollowRequests, currentManifest, currentPostManifest, currentPage, currentFollowerManifest, currentClientState]
 
 }
 
@@ -75,12 +78,12 @@ export async function processMlsMessage(
     followRequests: FollowRequests,
     remoteStore: RemoteStore,
     impl: CiphersuiteImpl
-): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined]> {
+): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined, PostManifestPage, PostManifest]> {
     console.log(msg)
     switch (msg.wireformat) {
         case "mls_welcome": {
             const result = await processAllowFollow(sender, msg.welcome, followRequests, masterKey, manifest, manifestId, remoteStore, impl)
-            return result
+            return [result[0],result[1],result[2],result[3], postManifestPage, postManifest]
         }
         case "mls_private_message": {
             const groupStateId = manifest.groupStates.get(uint8ToBase64Url(msg.privateMessage.groupId))!
@@ -117,9 +120,9 @@ export async function processMlsMessage(
                             }
                         
                             //todo send mls message to everyone who has previously commented on the post?
-                            const [, , newManifest] = await replaceInPage(mlsGroup, impl, postManifestPage, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
+                            const [newPage, newPostManifest, newManifest] = await replaceInPage(mlsGroup, impl, postManifestPage, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
                         
-                            return [followRequests, newManifest, undefined, result.newState]
+                            return [followRequests, newManifest, undefined, result.newState, newPage, newPostManifest]
                         } else {
                             const like = message.interaction
                             const { meta,pageId} = (await findPostMeta(postManifestPage, postManifest, message.interaction.postId, remoteStore))!
@@ -139,7 +142,7 @@ export async function processMlsMessage(
                             //todo send mls message to everyone who has previously commented on the post?
                             const [, , newManifest] = await replaceInPage(mlsGroup, impl, postManifestPage, pageId, postManifest, manifest, manifestId, masterKey, newMeta, remoteStore)
                         
-                            return [followRequests, newManifest, undefined, result.newState]
+                            return [followRequests, newManifest, undefined, result.newState, postManifestPage, postManifest]
                         }
                     } else {
                     
@@ -162,12 +165,12 @@ export async function processMlsMessage(
 
             }
 
-            return [followRequests, manifest, undefined, result.newState]
+            return [followRequests, manifest, undefined, result.newState , postManifestPage, postManifest]
 
         }
         default: {
             //todo
-            return [followRequests, manifest, undefined, undefined]
+            return [followRequests, manifest, undefined, undefined, postManifestPage, postManifest]
         }
     }
 }
