@@ -11,6 +11,7 @@ import {decodeBlobWithMime, encodeBlobWithMime} from "pathhub-client/src/imageEn
 import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
 import MapLibreRouteMap from './MapLibreView';
 import {renderRouteThumbnail} from "./ThumbnailRenderer"
+import { postTypeOptions } from "./postTypeEmojis"
 
 interface RouteData {
   coords: [number, number, number][]
@@ -30,6 +31,8 @@ const FileUpload: React.FC = () => {
   const [imageData, setImageData] = useState<Uint8Array[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [title, setTitle] = useState("")
+  const [postType, setPostType] = useState("Ride")
+  const [gear, setGear] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null)
@@ -134,7 +137,7 @@ const FileUpload: React.FC = () => {
 
     const content = encodeRoute(gpxData!.coords)
     const ls = await makeStore(user.id)
-    const rs = await createRemoteStore(createContentClient("/storage", user.token))
+    const rs = createRemoteStore(createContentClient("/storage", user.token))
 
     const blob = await renderRouteThumbnail(gpxData!.coords)
 
@@ -146,6 +149,8 @@ const FileUpload: React.FC = () => {
       thumb,
       imageData,
       Date.now(),
+      postType,
+      gear || undefined,
       user.id,
       user.currentPage,
       user.postManifest,
@@ -193,6 +198,36 @@ const FileUpload: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
             />
           </div>
+
+          <div className="mb-8">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Activity Type
+            </label>
+            <select
+              value={postType}
+              onChange={(e) => setPostType(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+            >
+              {postTypeOptions.map(({ value, emoji }) => (
+                <option key={value} value={value}>
+                  {`${emoji} ${value}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-8">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Gear (optional)
+            </label>
+            <input
+              type="text"
+              value={gear}
+              onChange={(e) => setGear(e.target.value)}
+              placeholder="e.g., Canyon Endurace CF SLX"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            />
+          </div>
           
           <div className="space-y-6">
             {/* GPX Upload */}
@@ -227,6 +262,30 @@ const FileUpload: React.FC = () => {
               </div>
             </div>
 
+            {/* Preview Section */}
+            {gpxData && (
+              <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Preview</h3>
+                <div ref={ref} className="mb-4 rounded-lg overflow-hidden border border-gray-200">
+                  <MapLibreRouteMap route={gpxData.coords} showMarkers/>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Duration</div>
+                    <div className="text-2xl font-bold text-blue-600">{(gpxData.totalDuration / 3600000).toFixed(1)} hrs</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Elevation</div>
+                    <div className="text-2xl font-bold text-green-600">{Math.round(gpxData.totalElevation)} m</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Distance</div>
+                    <div className="text-2xl font-bold text-purple-600">{(gpxData.totalDistance / 1000).toFixed(1)} km</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Media Upload */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Upload Photos (Optional)</h3>
@@ -258,30 +317,6 @@ const FileUpload: React.FC = () => {
                 </label>
               </div>
             </div>
-
-            {/* Preview Section */}
-            {gpxData && (
-              <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Preview</h3>
-                <div ref={ref} className="mb-4 rounded-lg overflow-hidden border border-gray-200">
-                  <MapLibreRouteMap route={gpxData.coords} showMarkers/>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="text-sm text-gray-600 mb-1">Duration</div>
-                    <div className="text-2xl font-bold text-blue-600">{(gpxData.totalDuration / 3600000).toFixed(1)} hrs</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="text-sm text-gray-600 mb-1">Elevation</div>
-                    <div className="text-2xl font-bold text-green-600">{Math.round(gpxData.totalElevation)} m</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="text-sm text-gray-600 mb-1">Distance</div>
-                    <div className="text-2xl font-bold text-purple-600">{(gpxData.totalDistance / 1000).toFixed(1)} km</div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {imageUrls.length > 0 && (
               <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">

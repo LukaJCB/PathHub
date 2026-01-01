@@ -45,11 +45,12 @@ export interface PostMeta {
   likes: StorageIdentifier | undefined
   thumbnail: StorageIdentifier
   media: StorageIdentifier[]
+  type: string | undefined,
+  gear: string | undefined
 }
 
 //TODO should these be initalized with empty objects in storage instead?
 
-//todo add commentId?
 export interface BaseInteraction {
   postId: string
   author: string

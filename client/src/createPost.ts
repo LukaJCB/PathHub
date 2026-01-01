@@ -20,6 +20,8 @@ export async function createPost(
   thumbnail: Uint8Array,
   media: Uint8Array[],
   date: number,
+  postType: string | undefined,
+  gear: string | undefined,
   userId: string,
   page: PostManifestPage,
   postManifest: PostManifest,
@@ -52,7 +54,9 @@ export async function createPost(
     comments: undefined,
     likes: undefined,
     media: mediaIds,
-    thumbnail: thumbnailId
+    thumbnail: thumbnailId,
+    type: postType,
+    gear
   }
 
 

@@ -14,6 +14,7 @@ import { getAvatarImageUrl } from "./App";
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 import { getUserInfo } from "pathhub-client/src/userInfo.js";
 import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js";
+import { getGearEmoji, getPostTypeEmoji } from "./postTypeEmojis";
 
 
 export const PostView = () => {
@@ -223,6 +224,18 @@ export const PostView = () => {
                     {post && (
                         <div className="p-8 border-b border-gray-200">
                             <h2 className="text-3xl font-bold text-gray-900 mb-4">{post.title}</h2>
+                            {post.type && (
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold mb-4">
+                                    <span>{getPostTypeEmoji(post.type) || "✨"}</span>
+                                    <span>{post.type}</span>
+                                </div>
+                            )}
+                            {post.gear && (
+                                <div className="flex items-center gap-2 text-sm text-gray-700 mb-4">
+                                    <span role="img" aria-label="gear">{getGearEmoji(post.type)}</span>
+                                    <span className="font-medium text-gray-800">{post.gear}</span>
+                                </div>
+                            )}
                             <Link 
                                 to={`/user/${profileUserId}/0`} 
                                 aria-label="Open profile"

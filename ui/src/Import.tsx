@@ -233,6 +233,9 @@ export function BulkImport() {
 
         const date = new Date(record["Activity Date"]).getTime()
 
+        const postType = record["Activity Type"]
+        const gear = record["Activity Gear"]
+
         const blob = await entry.getData(new BlobWriter("application/xml"))
         const text = await blob.text()
 
@@ -254,6 +257,8 @@ export function BulkImport() {
               thumb,
               media,
               date,
+              postType || undefined,
+              gear || undefined,
               user.id,
               currentPage,
               currentPostManifest,

@@ -4,6 +4,7 @@ import { PostMeta } from "pathhub-client/src/manifest.js"
 import { createRemoteStore, retrieveAndDecryptContent } from "pathhub-client/src/remoteStore.js"
 import { useEffect, useState } from "react"
 import { Link } from "react-router"
+import { getPostTypeEmoji } from "./postTypeEmojis"
 
 type Props = {
     post: PostMeta
@@ -63,6 +64,13 @@ export const PostPreview: React.FC<Props> = ({post, userId, username, page, toke
                     >
                         <h2 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2 hover:text-blue-600">{post.title}</h2>
                     </Link>
+
+                    {post.type && (
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold mb-3">
+                            <span>{getPostTypeEmoji(post.type) || "✨"}</span>
+                            <span>{post.type}</span>
+                        </div>
+                    )}
 
                     <Link to={`/user/${userId}/0`} aria-label="Open profile" className="hover:opacity-80">
                         <div className="flex items-center gap-3 mb-3">
