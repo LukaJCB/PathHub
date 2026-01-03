@@ -33,6 +33,11 @@ describe("Registration + login flow", () => {
       signingKey: privateKey,
       publicKey,
       publicKeyId: keyId,
+      minioEndpoint: "http://localhost:9000",
+      minioAccessKeyId: "minioadmin",
+      minioSecretAccessKey: "minioadmin",
+      bucketName: "test-bucket",
+      bucketNamePublic: "test-bucket-public",
     })
 
     const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })

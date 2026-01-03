@@ -60,17 +60,17 @@ If the index grows too large for local search, it could be split and searched se
 
 ## Server software
 
-The server software is split into 3 distinct services, an authentication service, a storage service and a message broker service.
+The server software is split into 2 distinct services: a user service and a message broker service.
 
-### Authentication Service
+### User Service
 
-This service allows users to register and login using the [OPAQUE Protocol](https://opaque-auth.com/). 
+This service combines authentication and storage functionality.
+
+**Authentication**: Allows users to register and login using the [OPAQUE Protocol](https://opaque-auth.com/). 
 Once a user logs in successfully the server will return a JWT that contains the user's id. 
-This JWT can be used to access the storage and message broker services.
+This JWT can be used to access the storage endpoints and the message broker service.
 
-### Storage Service
-
-This service stores encrypted binary blobs along with an userId marked as the owner and a nonce.
+**Storage**: Stores encrypted binary blobs along with an userId marked as the owner and a nonce.
 It uses a model of immutable data with mutable pointers.
 Every pointer is a 128 bit random value that is stored inside a PostgresDB table.
 The table marks the owner and can thus restrict access to only those users who the owner explictly allows.

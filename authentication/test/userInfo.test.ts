@@ -131,6 +131,11 @@ describe("/userInfo endpoint", () => {
       signingKey: privateKey,
       publicKey,
       publicKeyId: keyId,
+      minioEndpoint: "http://localhost:9000",
+      minioAccessKeyId: "minioadmin",
+      minioSecretAccessKey: "minioadmin",
+      bucketName: "test-bucket",
+      bucketNamePublic: "test-bucket-public",
     })
 
 
@@ -351,6 +356,11 @@ describe("/lookupUser endpoint", () => {
       signingKey: privateKey,
       publicKey,
       publicKeyId: keyId,
+      minioEndpoint: "http://localhost:9000",
+      minioAccessKeyId: "minioadmin",
+      minioSecretAccessKey: "minioadmin",
+      bucketName: "test-bucket",
+      bucketNamePublic: "test-bucket-public",
     })
 
     const user1Id = await registerUser(app, username1, signingPublicKey1)

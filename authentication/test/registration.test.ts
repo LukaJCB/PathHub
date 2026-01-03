@@ -22,6 +22,11 @@ describe("Registration", () => {
       signingKey: privateKey,
       publicKey,
       publicKeyId: keyId,
+      minioEndpoint: "http://localhost:9000",
+      minioAccessKeyId: "minioadmin",
+      minioSecretAccessKey: "minioadmin",
+      bucketName: "test-bucket",
+      bucketNamePublic: "test-bucket-public",
     })
   })
 

@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, expect } from "vitest"
+import { describe, it, beforeAll, afterAll, expect } from "vitest"
 import { build } from "../src/app.js"
 import { encode, decode } from "cbor-x"
 import { randomBytes } from "crypto"
@@ -16,13 +16,15 @@ const MINIO_SECRET_KEY = "minioadmin"
 describe("MinIO content upload and fetch", () => {
   let app: FastifyInstance
   let privateKey: CryptoKey
+  let publicKey: CryptoKey
   const testUserId = "123"
   const testUsername = "testuser"
   let token: string
 
   beforeAll(async () => {
-    const { publicKey, privateKey: privKey } = await generateKeyPair("Ed25519")
-    privateKey = privKey
+    const keypair = await generateKeyPair("Ed25519")
+    publicKey = keypair.publicKey
+    privateKey = keypair.privateKey
 
     token = await new SignJWT({ sub: testUserId, ["ph-user"]: testUsername })
       .setProtectedHeader({ alg: "EdDSA" })
@@ -55,12 +57,16 @@ describe("MinIO content upload and fetch", () => {
     }
 
     app = await build({
+      opaqueSecret: "test-opaque-secret",
+      pgConnection: "postgresql://postgres:postgres@localhost:5432/postgres",
+      signingKey: privateKey,
+      publicKey: publicKey,
+      publicKeyId: "test-key-id",
       minioEndpoint: MINIO_ENDPOINT,
       minioAccessKeyId: MINIO_ACCESS_KEY,
       minioSecretAccessKey: MINIO_SECRET_KEY,
       bucketName: BUCKET_NAME,
       bucketNamePublic: BUCKET_NAME,
-      publicKey,
     })
   })
 
