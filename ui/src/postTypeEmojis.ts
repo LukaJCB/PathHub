@@ -9,6 +9,10 @@ export const postTypeOptions: Array<{ value: string; emoji: string }> = [
   { value: "Virtual Ride", emoji: "🖥️🚴" },
   { value: "Virtual Run", emoji: "🖥️🏃" },
   { value: "Kayaking", emoji: "🛶" },
+  { value: "Canoe", emoji: "🚣" },
+  { value: "Yoga", emoji: "🧘" },
+  { value: "Ski", emoji: "⛷️" },
+  { value: "Snowboard", emoji: "🏂" },
 ]
 
 export const postTypeEmojiMap: Record<string, string> = postTypeOptions.reduce(

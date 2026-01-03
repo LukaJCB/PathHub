@@ -170,7 +170,7 @@ export function BulkImport() {
     const blob = await activities.getData(new BlobWriter("text/csv"))
     const text = await blob.text();
     const result = Papa.parse<ActivityRecord>(text, { header: true }).data
-      .slice(0, 25)
+      // .slice(0, 25)
     setTotal(result.length)
 
     const activityMap: Record<string, Entry> = entries.reduce((acc, cur) => {

@@ -120,6 +120,12 @@ export const PostPreview: React.FC<Props> = ({post, userId, username, page, toke
                                 <span>💬</span>
                                 <span>{post.totalComments}</span>
                             </span>
+                            {post.media.length > 0 && (
+                                <span className="flex items-center gap-1">
+                                    <span>📸</span>
+                                    <span>{post.media.length}</span>
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
