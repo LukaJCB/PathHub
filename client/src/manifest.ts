@@ -6,10 +6,11 @@ export type StorageIdentifier = [string, Uint8Array]
 // use a new manifest every time the master key is rotated
 export interface Manifest {
   postManifest: StorageIdentifier
+  indexes: Uint8Array  // reference to IndexManifest
   //todo should group states and follower manifests be combined?
-  groupStates: Map<string, Uint8Array>
-  followerManifests: Map<string, Uint8Array>
-  followRequests: Uint8Array
+  groupStates: Map<string, Uint8Array> //reference to FollowerGroupState
+  followerManifests: Map<string, Uint8Array> //reference to FollowerManifest
+  followRequests: Uint8Array // reference to FollowRequests
 }
 
 export interface FollowerGroupState {
@@ -83,6 +84,45 @@ export interface PostManifest {
   totals: Totals
   currentPage: StorageIdentifier
   pages: { usedUntil: number; page: StorageIdentifier }[]
+}
+
+export interface PostReference {
+  postId: string
+  sortValue: number
+}
+
+export interface PostLocatorEntry {
+  pageIndex: number
+  title: string
+  date: number
+  typeId?: number
+  gearId?: number
+  metrics: DerivedMetrics
+}
+
+export interface IndexManifest {
+  byDistance: string
+  byDuration: string
+  byElevation: string
+  byType: string
+  byGear: string
+  wordIndex: string
+  postLocator: string
+  typeMap: Map<number, string>
+  gearMap: Map<number, string>
+}
+
+export interface IndexCollection {
+  byDistance: PostReference[]
+  byDuration: PostReference[]
+  byElevation: PostReference[]
+  byType: Map<number, string[]>
+  byGear: Map<number, string[]>
+  wordIndex: Map<string, string[]>
+  postLocator: Map<string, PostLocatorEntry>
+  typeMap: Map<number, string>  // typeId -> type name
+  gearMap: Map<number, string>  // gearId -> gear name
+  version: number
 }
 
 

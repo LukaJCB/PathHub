@@ -15,12 +15,13 @@ import {
 } from "ts-mls"
 import { clientConfig } from "./mlsConfig"
 import { deriveGroupIdFromUserId } from "./mlsInteractions";
-import { PostManifestPage, Manifest, PostManifest, FollowerGroupState } from "./manifest";
+import { PostManifestPage, Manifest, PostManifest, FollowerGroupState, IndexManifest, IndexCollection } from "./manifest";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptPostManifestPage, retrieveAndDecryptGroupState, retrieveAndDecryptManifest, uint8ToBase64Url, retrieveAndDecryptPostManifest } from "./remoteStore";
-import { encryptAndStore, encryptAndStoreWithPostSecret } from "./createPost";
+import { encryptAndStore, encryptAndStoreWithPostSecret, storeIndexes } from "./createPost";
 import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest, encodeFollowerGroupState } from "./codec/encode";
 import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
+import { encode } from "cbor-x";
 
 export interface SignatureKeyPair {
   signKey: Uint8Array
@@ -137,10 +138,11 @@ export async function getGroupStateIdFromManifest(y: Manifest, userId: string): 
 
 async function initManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: RemoteStore, page: PostManifestPage, gmStorageId: Uint8Array, frStorageId: Uint8Array, masterKey: Uint8Array, manifestId: string): Promise<[Manifest, PostManifest]> {
     const [pm, pmStorage] = await initPostManifest(groupState, impl, rs, page);
-
+    const indexesStorage = await initIndexManifest(rs, masterKey);
 
     const manifest: Manifest = {
       postManifest: pmStorage,
+      indexes: indexesStorage,
       groupStates: new Map([[uint8ToBase64Url(groupState.groupContext.groupId), gmStorageId] as const]),
       followerManifests: new Map(),
       followRequests: frStorageId
@@ -149,6 +151,42 @@ async function initManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: 
     await encryptAndStoreWithPostSecret(masterKey, rs, encodeManifest(manifest), base64urlToUint8(manifestId));
 
     return [manifest, pm]
+}
+
+
+async function initIndexManifest(rs: RemoteStore, masterKey: Uint8Array): Promise<Uint8Array> {
+
+  const emptyIndexes: IndexCollection = {
+    byDistance: [],
+    byDuration: [],
+    byElevation: [],
+    byType: new Map(),
+    byGear: new Map(),
+    wordIndex: new Map(),
+    postLocator: new Map(),
+    typeMap: new Map(),
+    gearMap: new Map(),
+    version: 1
+  }
+
+  // Create initial IndexManifest with random storage IDs
+  const indexManifest: IndexManifest = {
+    byDistance: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    byDuration: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    byElevation: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    byType: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    byGear: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    wordIndex: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    postLocator: uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+    typeMap: emptyIndexes.typeMap,
+    gearMap: emptyIndexes.gearMap
+  }
+  
+  const indexManifestId = crypto.getRandomValues(new Uint8Array(32))
+
+  await storeIndexes(emptyIndexes, rs, masterKey, indexManifest,indexManifestId)
+
+  return indexManifestId
 }
 
 async function initPostManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: RemoteStore, page: PostManifestPage): Promise<[PostManifest, [string, Uint8Array]]> {

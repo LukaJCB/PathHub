@@ -4,6 +4,8 @@ import { toBufferSource } from "ts-mls/util/byteArray.js";
 export interface StorageClient {
   putContent(objectId: string, body: Uint8Array, accessKey: Uint8Array, nonce: Uint8Array): Promise<void>
 
+  batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void>
+
   batchGetContent(objectIds: [Uint8Array, Uint8Array][]): Promise<Record<string, { body: Uint8Array; nonce: string }>>
 
   putAvatar(body: Uint8Array, contentType: "image/png" | "image/jpeg" | "image/svg+xml"): Promise<void>
@@ -35,6 +37,45 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       console.log(await res.text())
       throw new Error(`Unexpected status ${res.status}`)
     }
+  }
+
+  async function batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void> {
+    const headers = {
+      "Content-Type": "application/octet-stream",
+      Authorization: `Bearer ${authToken}`,
+    }
+
+    const encodedPayloads = payloads.map(p => ({
+      id: p.id,
+      body: p.body,
+      nonce: uint8ToBase64Url(p.nonce)
+    }))
+
+    const res = await fetch(`${baseUrl}/content/batchPut`, {
+      method: "POST",
+      headers,
+      body: encode(encodedPayloads) as BufferSource,
+    })
+
+    if (res.status === 204) {
+      return
+    }
+
+    if (res.status === 400) {
+      const errorBody = await res.arrayBuffer()
+      const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
+      throw new Error(errorDecoded.error)
+    }
+
+    if (res.status === 401) {
+      throw new Error("Unauthorized")
+    }
+
+    if (res.status === 403) {
+      throw new Error("Forbidden: object is restricted")
+    }
+
+    throw new Error(`Unexpected status ${res.status} on batchPut`)
   }
 
   async function batchGetContent(objectIds: [Uint8Array, Uint8Array][]): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
@@ -129,6 +170,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
   return {
     putContent,
+    batchPut,
     batchGetContent,
     putAvatar,
     getAvatar,

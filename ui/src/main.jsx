@@ -20,6 +20,7 @@ import UploadAvatarView from './UploadAvatarView.js';
 import {MessageProcessor} from "./MessageProcessor.js"
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from "./queryClient.js";
+import SearchView from "./SearchView.js";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')).render(
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<ProtectedRoute><App /></ProtectedRoute>} />
+                <Route path="search" element={<ProtectedRoute><SearchView /></ProtectedRoute>} />
               <Route path="upload" element={<ProtectedRoute><FileUpload /></ProtectedRoute>} />
               <Route path="bulkImport" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
               <Route path="user/:userId/:page">

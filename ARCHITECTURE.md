@@ -21,11 +21,41 @@ To recap, every user will have a post manifest that contains all their DEKs and 
 This pseudo code represents the structure every user has to store locally to use the application:
 
 ```typescript
-type PostManifest = Map<ObjectId, AesKey>
+// First is the objectId, second is the encryption key
+type StorageIdentifier = [string, Uint8Array]
+
+interface PostManifest {
+  totals: {
+    totalPosts: number
+    totalDerivedMetrics: {
+      distance: number
+      elevation: number
+      duration: number
+    }
+  }
+  currentPage: StorageIdentifier
+  pages: { usedUntil: number; page: StorageIdentifier }[]
+}
+
+interface PostManifestPage {
+  posts: PostMeta[]
+  pageIndex: number
+}
+
+interface Manifest {
+  postManifest: StorageIdentifier //stoes own post manifest
+  groupStates: Map<string, Uint8Array> //stores MLS state for each group, encrypted with master key
+  followerManifests: Map<string, Uint8Array> // stores followerManifests for each person followed, encrypted with master key
+}
+
+interface FollowerManifest {
+  postManifest: StorageIdentifier
+  currentPage: StorageIdentifier
+}
 
 type LocalState = {
-  ownManifest: PostManifest
-  followeeManifests: Map<UserId, PostManifest>
+  ownManifest: Manifest
+  masterKey: Uint8Array
 }
 ```
 

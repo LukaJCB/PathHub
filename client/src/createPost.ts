@@ -1,13 +1,14 @@
 import { CiphersuiteImpl, createApplicationMessage, ClientState } from "ts-mls"
-import { PostManifestPage, DerivedMetrics, Manifest, PostManifest, PostMeta, StorageIdentifier, addDerivedMetrics } from "./manifest"
-import { encode } from "cbor-x"
+import { PostManifestPage, DerivedMetrics, Manifest, PostManifest, PostMeta, StorageIdentifier, addDerivedMetrics, IndexCollection, IndexManifest } from "./manifest"
+import { encode, decode } from "cbor-x"
 import { MessageClient } from "./http/messageClient"
 
 import { mlsExporter } from "ts-mls/keySchedule.js"
 import { Message } from "./message"
+import { addPostToIndexes } from "./indexing"
 
 import { LocalStore } from "./localStore"
-import { base64urlToUint8, RemoteStore } from "./remoteStore"
+import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "./remoteStore"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
 import { encodePostManifestPage, encodeManifest, encodePostManifest } from "./codec/encode"
 
@@ -93,6 +94,76 @@ export async function createPost(
   return [createMessageResult.newState, newPage, newPostManifest, newManifest]
 }
 
+async function loadIndexes(
+  manifest: Manifest,
+  masterKey: Uint8Array,
+  remoteStore: RemoteStore
+): Promise<[IndexCollection, IndexManifest]> {
+  
+  const decrypted = await retrieveAndDecryptContent(remoteStore, [uint8ToBase64Url(manifest.indexes), masterKey])
+  
+  const indexManifest = decode(new Uint8Array(decrypted)) as IndexManifest
+
+
+  const [
+    byDistanceData,
+    byDurationData,
+    byElevationData,
+    byTypeData,
+    byGearData,
+    wordIndexData,
+    postLocatorData
+  ] = await Promise.all([
+    retrieveAndDecryptContent(remoteStore, [indexManifest.byDistance, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.byDuration, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.byElevation, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.byType, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.byGear, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.wordIndex, masterKey]),
+    retrieveAndDecryptContent(remoteStore, [indexManifest.postLocator, masterKey])
+  ])
+
+  const collection = {
+    byDistance: decode(new Uint8Array(byDistanceData)),
+    byDuration: decode(new Uint8Array(byDurationData)),
+    byElevation: decode(new Uint8Array(byElevationData)),
+    byType: decode(new Uint8Array(byTypeData)),
+    byGear: decode(new Uint8Array(byGearData)),
+    wordIndex: decode(new Uint8Array(wordIndexData)),
+    postLocator: decode(new Uint8Array(postLocatorData)),
+    typeMap: indexManifest.typeMap,
+    gearMap: indexManifest.gearMap,
+    version: 1
+  }
+
+  return [collection, indexManifest]
+}
+
+export async function storeIndexes(
+  indexes: IndexCollection,
+  remoteStore: RemoteStore,
+  masterKey: Uint8Array,
+  indexManifest: IndexManifest,
+  indexManifestId: Uint8Array
+): Promise<void> {
+
+  const newIndexManifest: IndexManifest = {...indexManifest, typeMap: indexes.typeMap, gearMap: indexes.gearMap}
+
+  await Promise.all([
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byDistance), base64urlToUint8(indexManifest.byDistance)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byDuration), base64urlToUint8(indexManifest.byDuration)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byElevation), base64urlToUint8(indexManifest.byElevation)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byType), base64urlToUint8(indexManifest.byType)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byGear), base64urlToUint8(indexManifest.byGear)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.wordIndex), base64urlToUint8(indexManifest.wordIndex)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.postLocator), base64urlToUint8(indexManifest.postLocator)),
+    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(newIndexManifest), indexManifestId)
+  ])
+
+
+
+}
+
 
 export async function addToPage(
   mlsGroup: ClientState,
@@ -135,8 +206,17 @@ export async function addToPage(
   
   const newManifest = await updatePostManifest(remoteStore, newPostManifest, mlsGroup, impl, manifest, masterKey, manifestId)
 
-
+  const [indexes, indexManifest] = await loadIndexes(newManifest ?? manifest, masterKey, remoteStore)
   
+  
+  const newCollection = addPostToIndexes(indexes, postMeta, page.pageIndex)
+  await storeIndexes(
+    newCollection,
+    remoteStore,
+    masterKey,
+    indexManifest,
+    manifest.indexes
+  )
   
   return [newPage, newPostManifest, newManifest ?? manifest]
   
@@ -251,6 +331,19 @@ export async function overflowManifest(
   
   const newManifest = await updatePostManifest(remoteStore, newPostManifest, mlsGroup, impl, manifest, masterKey, manifestId)
 
+const [indexes, indexManifest] = await loadIndexes(newManifest ?? manifest, masterKey, remoteStore)
+  
+
+
+  
+  const newCollection = addPostToIndexes(indexes, postMeta, page.pageIndex)
+  await storeIndexes(
+    newCollection,
+    remoteStore,
+    masterKey,
+    indexManifest,
+    manifest.indexes
+  )
   
   return [newPage, newPostManifest, newManifest ?? manifest]
 }

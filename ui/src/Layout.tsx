@@ -20,6 +20,12 @@ export function Layout() {
             <div className="flex items-center gap-6">
               {user && (
                 <>
+                  <Link
+                    to="/search"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+                  >
+                    Search
+                  </Link>
                   <div className="flex items-center gap-3">
                     {user?.avatarUrl ? (
                       <img src={user.avatarUrl} alt={`${user.name} avatar`} className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-100" />

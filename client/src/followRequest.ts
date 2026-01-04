@@ -198,8 +198,8 @@ export async function allowFollow(
   }
 
   const [pmid, pmpid] = await Promise.all([
-    encryptAndStore(newGroupState, impl, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0])),
-    encryptAndStore(newGroupState, impl, remoteStore, encodePostManifestPage(page), base64urlToUint8(postManifest.currentPage[0])),
+    encryptAndStoreWithPostSecret(newSecret, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0])),
+    encryptAndStoreWithPostSecret(newSecret, remoteStore, encodePostManifestPage(page), base64urlToUint8(postManifest.currentPage[0])),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), groupStateStorageId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),

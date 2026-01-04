@@ -33,7 +33,7 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, PostManifest, PostMan
     let currentClientState = undefined
     for (const m of messages) {
         const mp = decodeMessagePublic(m.payload)
-        console.log(mp)
+
         if (mp.kind === 'GroupMessage') {
           const message = decodeMlsMessage(mp.mlsMessage, 0)![0]
           const result = await processMlsMessage(message, ownGroupState, m.sender, userId, postManifest, postManifestPage, currentManifest, manifestId, masterKey, currentFollowRequests, remoteStore, impl)
@@ -79,7 +79,7 @@ export async function processMlsMessage(
     remoteStore: RemoteStore,
     impl: CiphersuiteImpl
 ): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined, PostManifestPage, PostManifest]> {
-    console.log(msg)
+
     switch (msg.wireformat) {
         case "mls_welcome": {
             const result = await processAllowFollow(sender, msg.welcome, followRequests, masterKey, manifest, manifestId, remoteStore, impl)
