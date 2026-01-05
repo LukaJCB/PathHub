@@ -122,7 +122,6 @@ export interface IndexCollection {
   postLocator: Map<string, PostLocatorEntry>
   typeMap: Map<number, string>  // typeId -> type name
   gearMap: Map<number, string>  // gearId -> gear name
-  version: number
 }
 
 

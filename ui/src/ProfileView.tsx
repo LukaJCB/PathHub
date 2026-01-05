@@ -17,7 +17,7 @@ export const ProfileView: React.FC = () => {
 
     const {user} = useAuthRequired()
     const params = useParams();
-    const page = parseInt(params.page!)
+    const page = params.page ? parseInt(params.page) : user.currentPage.pageIndex
     const profileUserId = params.userId!
     const [postManifestPage, setPostManifestPage] = useState<PostManifestPage | null>(null)
     const [canView, setCanView] = useState(true)
@@ -136,17 +136,18 @@ export const ProfileView: React.FC = () => {
 
                                 {/* Pagination */}
                                 <div className="flex items-center justify-center gap-4 mt-8">
-                                    {page > 0 && 
-                                        <Link to={`/user/${profileUserId}/${page - 1}`} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                                            ← Previous
-                                        </Link>
-                                    }
-                                    <span className="text-gray-600 text-sm">Page {page + 1} of {user.currentPage.pageIndex + 1}</span>
                                     {page < user.currentPage.pageIndex && 
                                         <Link to={`/user/${profileUserId}/${page + 1}`} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                                            Next →
+                                           ← Previous
                                         </Link>
                                     }
+                                    <span className="text-gray-600 text-sm">Page {user.currentPage.pageIndex - page + 1} of {user.currentPage.pageIndex + 1}</span>
+                                    {page > 0 && 
+                                        <Link to={`/user/${profileUserId}/${page - 1}`} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                                           Next →    
+                                        </Link>
+                                    }
+                                    
                                 </div>
                             </div>
                         </>

@@ -166,7 +166,6 @@ async function initIndexManifest(rs: RemoteStore, masterKey: Uint8Array): Promis
     postLocator: new Map(),
     typeMap: new Map(),
     gearMap: new Map(),
-    version: 1
   }
 
   // Create initial IndexManifest with random storage IDs
@@ -181,7 +180,7 @@ async function initIndexManifest(rs: RemoteStore, masterKey: Uint8Array): Promis
     typeMap: emptyIndexes.typeMap,
     gearMap: emptyIndexes.gearMap
   }
-  
+
   const indexManifestId = crypto.getRandomValues(new Uint8Array(32))
 
   await storeIndexes(emptyIndexes, rs, masterKey, indexManifest,indexManifestId)

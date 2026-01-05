@@ -34,7 +34,7 @@ export function Layout() {
                         {initials}
                       </div>
                     )}
-                    <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}/0`}><span className="font-semibold">{user.name}</span></Link></span>
+                    <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}`}><span className="font-semibold">{user.name}</span></Link></span>
                   </div>
                   <Link
                     to="/followRequests"

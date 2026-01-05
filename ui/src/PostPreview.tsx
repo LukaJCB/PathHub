@@ -72,7 +72,7 @@ export const PostPreview: React.FC<Props> = ({post, userId, username, page, toke
                         </div>
                     )}
 
-                    <Link to={`/user/${userId}/0`} aria-label="Open profile" className="hover:opacity-80">
+                    <Link to={`/user/${userId}`} aria-label="Open profile" className="hover:opacity-80">
                         <div className="flex items-center gap-3 mb-3">
                             {avatarUrl ? (
                                 <img src={avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-100" />

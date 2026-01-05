@@ -32,6 +32,41 @@ export async function getPostLocatorAndMaps(manifest: Manifest, masterKey: Uint8
   return [postLocator, idxManifest.typeMap, idxManifest.gearMap] as const
 }
 
+export async function getAllIndexes(manifest: Manifest, masterKey: Uint8Array, rs: RemoteStore): Promise<IndexCollection> {
+  const manifestDecrypted = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.indexes), masterKey])
+  const idxManifest = decode(new Uint8Array(manifestDecrypted)) as IndexManifest
+
+  const [
+    byDistanceDecrypted,
+    byDurationDecrypted,
+    byElevationDecrypted,
+    byTypeDecrypted,
+    byGearDecrypted,
+    wordIndexDecrypted,
+    postLocatorDecrypted
+  ] = await Promise.all([
+    retrieveAndDecryptContent(rs, [idxManifest.byDistance, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.byDuration, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.byElevation, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.byType, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.byGear, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.wordIndex, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest.postLocator, masterKey])
+  ])
+
+  return {
+    byDistance: decode(new Uint8Array(byDistanceDecrypted)),
+    byDuration: decode(new Uint8Array(byDurationDecrypted)),
+    byElevation: decode(new Uint8Array(byElevationDecrypted)),
+    byType: decode(new Uint8Array(byTypeDecrypted)),
+    byGear: decode(new Uint8Array(byGearDecrypted)),
+    wordIndex: decode(new Uint8Array(wordIndexDecrypted)),
+    postLocator: decode(new Uint8Array(postLocatorDecrypted)),
+    typeMap: idxManifest.typeMap,
+    gearMap: idxManifest.gearMap
+  }
+}
+
 export function searchByTitle(
   wordIndex: Map<string, string[]>,
   postLocator: Map<string, PostLocatorEntry>,
@@ -59,76 +94,6 @@ export function searchByTitle(
   return final
 }
 
-export function getPostsByDistance(
-  indexes: IndexCollection,
-  limit?: number
-): PostReference[] {
-  return limit ? indexes.byDistance.slice(0, limit) : indexes.byDistance
-}
-
-export function getPostsByType(
-  indexes: IndexCollection,
-  type: string,
-  limit?: number
-): string[] {
-
-  let typeId: number | undefined
-  for (const [id, name] of indexes.typeMap) {
-    if (name === type) {
-      typeId = id
-      break
-    }
-  }
-  
-  if (typeId === undefined) return []
-  
-  const ids = indexes.byType.get(typeId) || []
-  return limit ? ids.slice(0, limit) : ids
-}
-
-
-export function getPostsByDuration(
-  indexes: IndexCollection,
-  limit?: number
-): PostReference[] {
-  return limit ? indexes.byDuration.slice(0, limit) : indexes.byDuration
-}
-
-export function getPostsByElevation(
-  indexes: IndexCollection,
-  limit?: number
-): PostReference[] {
-  return limit ? indexes.byElevation.slice(0, limit) : indexes.byElevation
-}
-
-
-export function getPostsByGear(
-  indexes: IndexCollection,
-  gear: string,
-  limit?: number
-): string[] {
-
-  let gearId: number | undefined
-  for (const [id, name] of indexes.gearMap) {
-    if (name === gear) {
-      gearId = id
-      break
-    }
-  }
-  
-  if (gearId === undefined) return []
-  
-  const ids = indexes.byGear.get(gearId) || []
-  return limit ? ids.slice(0, limit) : ids
-}
-
-export function getAvailableTypes(indexes: IndexCollection): string[] {
-  return Array.from(indexes.typeMap.values())
-}
-
-export function getAvailableGear(indexes: IndexCollection): string[] {
-  return Array.from(indexes.gearMap.values())
-}
 
 export function addPostToIndexes(
   indexes: IndexCollection,
@@ -243,7 +208,6 @@ export function addPostToIndexes(
     }
   }
 
-  indexes.version = Date.now()
   return indexes
 }
 

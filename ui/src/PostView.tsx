@@ -237,7 +237,7 @@ export const PostView = () => {
                                 </div>
                             )}
                             <Link 
-                                to={`/user/${profileUserId}/0`} 
+                                to={`/user/${profileUserId}`}
                                 aria-label="Open profile"
                                 className="flex items-center gap-3 mb-4 hover:opacity-80"
                             >
@@ -341,7 +341,7 @@ export const PostView = () => {
                                 {comments.map(c => (
                                     <div key={uint8ToBase64Url(c.signature)} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                         <Link 
-                                            to={`/user/${c.author}/0`}
+                                            to={`/user/${c.author}`}
                                             className="flex items-center gap-3 mb-2 hover:opacity-80"
                                         >
                                             {commentAvatars.get(c.author) ? (

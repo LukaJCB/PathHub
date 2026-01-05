@@ -344,7 +344,7 @@ export function BulkImport() {
               {progress === total && total > 0 && (
                 
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                  <Link to={`/user/${user.id}/0`}><p className="text-green-700 font-semibold">✓ Successfully imported {total} activities!</p></Link>
+                  <Link to={`/user/${user.id}`}><p className="text-green-700 font-semibold">✓ Successfully imported {total} activities!</p></Link>
                 </div>
                 
               )}

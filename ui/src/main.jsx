@@ -31,10 +31,10 @@ createRoot(document.getElementById('root')).render(
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<ProtectedRoute><App /></ProtectedRoute>} />
-                <Route path="search" element={<ProtectedRoute><SearchView /></ProtectedRoute>} />
+              <Route path="search" element={<ProtectedRoute><SearchView /></ProtectedRoute>} />
               <Route path="upload" element={<ProtectedRoute><FileUpload /></ProtectedRoute>} />
               <Route path="bulkImport" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
-              <Route path="user/:userId/:page">
+              <Route path="user/:userId/:page?">
                 <Route index element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
                 <Route path=":storageId" element={<ProtectedRoute><PostView /></ProtectedRoute>} />
               </Route>

@@ -82,7 +82,7 @@ export const FollowerView: React.FC = () => {
             <div className="max-w-4xl mx-auto">
                 <div className="bg-white rounded-lg shadow-md p-8">
                     <Link 
-                        to={`/user/${profileUserId}/0`} 
+                        to={`/user/${profileUserId}`} 
                         aria-label="Open profile"
                         className="flex items-center gap-3 mb-4 hover:opacity-80"
                     >
@@ -110,7 +110,7 @@ export const FollowerView: React.FC = () => {
                                 return (
                                     <Link 
                                         key={id} 
-                                        to={`/user/${id}/0`}
+                                        to={`/user/${id}`}
                                         className="block p-4 bg-gray-50 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
                                     >
                                         

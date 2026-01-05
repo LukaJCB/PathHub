@@ -73,7 +73,7 @@ export async function getPostManifestForUser(manifest: Manifest,
 
 
 export async function getPage(currentPage: PostManifestPage, postManifest: PostManifest, pageNumber: number, rs: RemoteStore): Promise<[PostManifestPage, StorageIdentifier]> {
-    const index = currentPage.pageIndex - pageNumber
+    const index = pageNumber
     if (currentPage.pageIndex == index) {
         return [currentPage, postManifest.currentPage]
     } else {

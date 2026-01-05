@@ -100,7 +100,7 @@ export const FollowRequestsView: React.FC = () => {
                                     {user.followRequests.incoming.map(i => (
                                         <div key={i.followerId} className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
                                             <Link 
-                                                to={`/user/${i.followerId}/0`}
+                                                to={`/user/${i.followerId}`}
                                                 className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                                             >
                                                 {avatars.get(i.followerId) ? (
@@ -140,7 +140,7 @@ export const FollowRequestsView: React.FC = () => {
                                     {user.followRequests.outgoing.map(i => (
                                         <div key={i.followeeId} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                             <Link 
-                                                to={`/user/${i.followeeId}/0`}
+                                                to={`/user/${i.followeeId}`}
                                                 className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                                             >
                                                 {avatars.get(i.followeeId) ? (
