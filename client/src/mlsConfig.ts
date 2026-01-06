@@ -7,7 +7,7 @@ import {
 } from "ts-mls"
 
 export const authService: AuthenticationService = {
-  async validateCredential(credential, signaturePublicKey) {
+  async validateCredential(_credential, _signaturePublicKey) {
     return true //todo
   },
 }

@@ -21,7 +21,6 @@ import { encryptAndStore, encryptAndStoreWithPostSecret, storeIndexes } from "./
 import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest, encodeFollowerGroupState } from "./codec/encode";
 import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
-import { encode } from "cbor-x";
 
 export interface SignatureKeyPair {
   signKey: Uint8Array

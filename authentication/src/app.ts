@@ -489,11 +489,8 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
   }
 
   // Storage endpoints
-  const batchPutContentSchema = {
+  const batchContentUploadSchema = {
     schema: {
-      params: {
-        type: "object",
-      },
       response: {
         204: {
           type: "object",
@@ -510,100 +507,7 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
             error: { type: "string" },
           },
         },
-      },
-    },
-  }
-
-  interface Payload {
-    nonce: string,
-    body: Uint8Array,
-    id: string
-  }
-
-  fastify.post(
-    "/content/batchPut",
-    batchPutContentSchema,
-    async (req, reply) => {
-      const user = await authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
-
-      if (req.headers["content-type"] !== "application/octet-stream") {
-        return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
-      }
-
-      const payloads = decode(await streamToBuffer(req.raw)) as Payload[]
-
-      for (const payload of payloads) {
-        const nonce = payload.nonce
-
-        const objectId = payload.id
-        const key = shardObjectKey(objectId)
-
-        try {
-          const head = await s3.send(
-            new HeadObjectCommand({
-              Bucket: config.bucketName,
-              Key: key,
-            }),
-          )
-
-          const owner = head.Metadata?.["userid"]
-          if (owner && owner !== user.userId) {
-            return reply.code(403).send(encode({ error: "This object is restricted" }))
-          }
-        } catch (err) {
-          if (isErrorWithName(err) && err.name !== "NotFound") {
-            throw err
-          }
-        }
-
-        const buffer = payload.body
-
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: config.bucketName,
-            Key: key,
-            Body: buffer,
-            ContentType: "application/octet-stream",
-            Metadata: { nonce: nonce, userId: user.userId },
-          }),
-        )
-      }
-
-      
-
-      return reply.code(204).send()
-    },
-  )
-
-  const putContentSchema = {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          objectId: { type: "string" },
-        },
-        required: ["objectId"],
-      },
-      headers: {
-        type: "object",
-        properties: {
-          "x-ph-nonce": { type: "string" },
-          "x-ph-access": { type: "string" },
-        },
-        required: ["x-ph-nonce", "x-ph-access"],
-      },
-      response: {
-        204: {
-          type: "object",
-        },
-        401: {
-          type: "object",
-        },
-        403: {
-          type: "object",
-        },
-        400: {
+        500: {
           type: "object",
           properties: {
             error: { type: "string" },
@@ -613,54 +517,118 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
     },
   }
 
-  fastify.put<{ Params: { objectId: string }; Headers: { "x-ph-nonce": string; "x-ph-access": string } }>(
-    "/content/:objectId",
-    putContentSchema,
+
+  fastify.put(
+    "/content/batch",
+    batchContentUploadSchema,
     async (req, reply) => {
       const user = await authenticate(req.headers.authorization)
       if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
       if (req.headers["content-type"] !== "application/octet-stream") {
         return reply.code(400).send(encode({ error: "Expected application/octet-stream" }))
-      }
-
-      const nonce = req.headers["x-ph-nonce"]
-      const accessKey = req.headers["x-ph-access"]
-
-      const objectId = req.params.objectId
-      const key = shardObjectKey(objectId)
-
-      try {
-        const head = await s3.send(
-          new HeadObjectCommand({
-            Bucket: config.bucketName,
-            Key: key,
-          }),
-        )
-
-        const owner = head.Metadata?.["userid"]
-        if (owner && owner !== user.userId) {
-          return reply.code(403).send(encode({ error: "This object is restricted" }))
-        }
-      } catch (err) {
-        if (isErrorWithName(err) && err.name !== "NotFound") {
-          throw err
-        }
       }
 
       const buffer = await streamToBuffer(req.raw)
+      let offset = 0
 
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: config.bucketName,
-          Key: key,
-          Body: buffer,
-          ContentType: "application/octet-stream",
-          Metadata: { nonce: nonce, token: accessKey, userId: user.userId },
-        }),
-      )
+      // Parse magic and version
+      if (buffer.length < 6) {
+        return reply.code(400).send(encode({ error: "Invalid batch format: too short" }))
+      }
 
-      return reply.code(204).send()
+      const magic = buffer.readUInt32BE(offset)
+      offset += 4
+      const version = buffer.readUInt16BE(offset)
+      offset += 2
+
+      if (magic !== 0xdaab0000) {
+        return reply.code(400).send(encode({ error: "Invalid magic bytes" }))
+      }
+
+      if (version !== 1) {
+        return reply.code(400).send(encode({ error: `Unsupported version: ${version}` }))
+      }
+
+      try {
+
+        while (offset < buffer.length) {
+
+          if (offset + 2 > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated nonce length" }))
+          }
+          const nonceLen = buffer.readUInt16BE(offset)
+          offset += 2
+
+          if (offset + nonceLen > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated nonce" }))
+          }
+          const nonce = buffer.subarray(offset, offset + nonceLen).toString("base64url")
+          offset += nonceLen
+
+
+          if (offset + 2 > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated ID length" }))
+          }
+          const idLen = buffer.readUInt16BE(offset)
+          offset += 2
+
+          if (offset + idLen > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated ID" }))
+          }
+          const objectId = buffer.subarray(offset, offset + idLen).toString("base64url")
+          offset += idLen
+
+          if (offset + 8 > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated blob length" }))
+          }
+          const blobLen = Number(buffer.readBigUInt64BE(offset))
+          offset += 8
+
+          if (offset + blobLen > buffer.length) {
+            return reply.code(400).send(encode({ error: "Truncated blob" }))
+          }
+          const blob = buffer.subarray(offset, offset + blobLen)
+          offset += blobLen
+
+          // Check ownership and upload
+          const key = shardObjectKey(objectId)
+
+          try {
+            const head = await s3.send(
+              new HeadObjectCommand({
+                Bucket: config.bucketName,
+                Key: key,
+              }),
+            )
+
+            const owner = head.Metadata?.["userid"]
+            if (owner && owner !== user.userId) {
+              return reply.code(403).send(encode({ error: "This object is restricted" }))
+            }
+          } catch (err) {
+            if (isErrorWithName(err) && err.name !== "NotFound") {
+              throw err
+            }
+          }
+
+
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: config.bucketName,
+              Key: key,
+              Body: blob,
+              ContentType: "application/octet-stream",
+              Metadata: { nonce: nonce, userId: user.userId },
+            }),
+          )
+        }
+
+        return reply.code(204).send()
+      } catch (err) {
+        console.error(err)
+        return reply.code(500).send(encode({ error: "Internal server error" }))
+      }
     },
   )
 
@@ -796,7 +764,7 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
     schema: {
       body: {
         type: "array",
-        items: { type: "array", items: { type: "object" }, minItems: 2 },
+        items: { type: "object" },
         minItems: 1,
       },
       response: {
@@ -832,18 +800,18 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
     }
   }
 
-  fastify.post<{ Body: [Uint8Array, Uint8Array][] }>("/content/batch", batchContentSchema, async (req, reply) => {
+  fastify.post<{ Body: Uint8Array[] }>("/content/batch", batchContentSchema, async (req, reply) => {
     const user = await authenticate(req.headers.authorization)
     if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
     const input = req.body
 
     const objectIdStrings = input.map(
-      (id) => [Buffer.from(id[0]).toString("base64url"), Buffer.from(id[1]).toString("base64url")] as const,
+      (id) => Buffer.from(id).toString("base64url"),
     )
 
     try {
-      const fetches = objectIdStrings.map(async ([objectId, token]) => {
+      const fetches = objectIdStrings.map(async (objectId) => {
         const key = shardObjectKey(objectId)
         try {
           const obj = await s3.send(
@@ -852,10 +820,6 @@ async function authenticate(auth: string | undefined): Promise<AuthenticateResul
               Key: key,
             }),
           )
-
-          if (obj.Metadata?.["token"] !== token) {
-            throw new FetchError(objectId)
-          }
 
           const body = await streamToBuffer(obj.Body as Readable)
           const nonce = obj.Metadata?.["nonce"]!

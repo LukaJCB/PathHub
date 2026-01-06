@@ -40,8 +40,8 @@ describe("Authentication + Messaging End-to-End", () => {
   })
 
   it("User A sends a message to User B; B receives and acks it", async () => {
-    const clientA = createMessageClient(messagingBaseUrl, `Bearer ${tokenA}`)
-    const clientB = createMessageClient(messagingBaseUrl, `Bearer ${tokenB}`)
+    const clientA = createMessageClient(messagingBaseUrl, tokenA)
+    const clientB = createMessageClient(messagingBaseUrl, tokenB)
 
     const payload = new Uint8Array([1, 2, 3, 4, 5])
 

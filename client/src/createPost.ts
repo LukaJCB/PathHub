@@ -23,7 +23,7 @@ export async function createPost(
   date: number,
   postType: string | undefined,
   gear: string | undefined,
-  userId: string,
+  _userId: string,
   page: PostManifestPage,
   postManifest: PostManifest,
   mlsGroup: ClientState,
@@ -31,7 +31,7 @@ export async function createPost(
   manifestId: Uint8Array,
   store: LocalStore,
   remoteStore: RemoteStore,
-  messageClient: MessageClient,
+  _messageClient: MessageClient,
   impl: CiphersuiteImpl,
   masterKey: Uint8Array
 ): Promise<[ClientState, PostManifestPage, PostManifest, Manifest]> {
@@ -374,17 +374,9 @@ async function updatePostManifest(
 
 }
 
-// export async function updatePostManifest(manifest: PostManifestPage, postMeta: PostMeta, postManifestId: StorageIdentifier, remoteStore: RemoteStore) {
-//   const newManifest = upsertPost(manifest, postMeta)
-
-//   await encryptAndStoreWithPostSecret(postManifestId[1], remoteStore, encodePostManifestPage(newManifest), base64urlToUint8(postManifestId[0]))
-//   return newManifest
-// }
-
 
 export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remoteStore: RemoteStore, content: Uint8Array, storageId: Uint8Array): Promise<void> {
-  // const { key, accessKey, postSecret } = await deriveKeys(mlsGroup, impl)
-  const { key, accessKey } = await deriveAccessAndEncryptionKeys(postSecret)
+  const key = await importAesKey(postSecret)
 
   const nonce = crypto.getRandomValues(new Uint8Array(12))
 
@@ -396,12 +388,12 @@ export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remo
 
 
   // store encrypted content remotely
-  await remoteStore.storeContent(storageId, new Uint8Array(encryptedContent), nonce, new Uint8Array(accessKey))
+  await remoteStore.storeContent(storageId, new Uint8Array(encryptedContent), nonce)
  
 }
 
 export async function encryptAndStore(mlsGroup: ClientState, impl: CiphersuiteImpl, remoteStore: RemoteStore, content: Uint8Array, objectId?: Uint8Array): Promise<[string, Uint8Array]> {
-  const { key, accessKey, postSecret } = await deriveKeys(mlsGroup, impl)
+  const { key, postSecret } = await deriveKeys(mlsGroup, impl)
 
   const nonce = crypto.getRandomValues(new Uint8Array(12))
 
@@ -415,43 +407,24 @@ export async function encryptAndStore(mlsGroup: ClientState, impl: CiphersuiteIm
 
 
   // store encrypted content remotely
-  const storageId = await remoteStore.storeContent(objectId ?? crypto.getRandomValues(new Uint8Array(32)), new Uint8Array(encryptedContent), nonce, new Uint8Array(accessKey))
+  const storageId = await remoteStore.storeContent(objectId ?? crypto.getRandomValues(new Uint8Array(32)), new Uint8Array(encryptedContent), nonce)
 
 
   return [storageId, postSecret] as const
  
 }
 
-export async function deriveKeys(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<{ key: CryptoKey; accessKey: ArrayBuffer; postSecret: Uint8Array}> {
+export async function deriveKeys(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<{ key: CryptoKey; postSecret: Uint8Array}> {
   const postSecret = await derivePostSecret(mlsGroup, impl)
 
-  const { key, accessKey } = await deriveAccessAndEncryptionKeys(postSecret)
+  const key  = await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"])
 
-  return {key, accessKey, postSecret}
+  return {key, postSecret}
 }
 
-export async function deriveAccessAndEncryptionKeys(postSecret: Uint8Array) {
-  const postSecretKdfIkm = await crypto.subtle.importKey("raw", toBufferSource(postSecret), "HKDF", false, ["deriveBits", "deriveKey"])
-  const accessKey = await crypto.subtle.deriveBits({
-    name: "HKDF",
-    salt: new ArrayBuffer(),
-    info: new TextEncoder().encode("access key"),
-    hash: "SHA-256",
-  }, postSecretKdfIkm, 256)
+export async function importAesKey(postSecret: Uint8Array) {
+  return await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"])
 
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      salt: new ArrayBuffer(),
-      info: new TextEncoder().encode("data encryption key"),
-      hash: "SHA-256",
-    },
-    postSecretKdfIkm,
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt", "decrypt"]
-  )
-  return { key, accessKey }
 }
 
 export async function derivePostSecret(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<Uint8Array> {

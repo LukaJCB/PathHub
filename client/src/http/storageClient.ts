@@ -1,12 +1,13 @@
 import { encode, decode } from "cbor-x"
 import { toBufferSource } from "ts-mls/util/byteArray.js";
+import { base64urlToUint8 } from "../remoteStore";
 
 export interface StorageClient {
-  putContent(objectId: string, body: Uint8Array, accessKey: Uint8Array, nonce: Uint8Array): Promise<void>
+  putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void>
 
   batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void>
 
-  batchGetContent(objectIds: [Uint8Array, Uint8Array][]): Promise<Record<string, { body: Uint8Array; nonce: string }>>
+  batchGetContent(objectIds: Uint8Array[]): Promise<Record<string, { body: Uint8Array; nonce: string }>>
 
   putAvatar(body: Uint8Array, contentType: "image/png" | "image/jpeg" | "image/svg+xml"): Promise<void>
 
@@ -14,29 +15,9 @@ export interface StorageClient {
 }
 
 export function createContentClient(baseUrl: string, authToken: string): StorageClient {
-  const defaultHeaders = {
-    "Content-Type": "application/octet-stream",
-    Accept: "application/cbor",
-  }
 
-  async function putContent(objectId: string, body: Uint8Array, accessKey: Uint8Array, nonce: Uint8Array): Promise<void> {
-    const headers = {
-      ...defaultHeaders,
-      Authorization: `Bearer ${authToken}`,
-      "x-ph-nonce": uint8ToBase64Url(nonce),
-      "x-ph-access": uint8ToBase64Url(accessKey)
-    }
-
-    const res = await fetch(`${baseUrl}/content/${encodeURIComponent(objectId)}`, {
-      method: "PUT",
-      headers,
-      body: body as BufferSource,
-    })
-
-    if (!res.ok) {
-      console.log(await res.text())
-      throw new Error(`Unexpected status ${res.status}`)
-    }
+  async function putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void> {
+    return batchPut([{id: objectId, body, nonce}])
   }
 
   async function batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void> {
@@ -45,45 +26,69 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       Authorization: `Bearer ${authToken}`,
     }
 
-    const encodedPayloads = payloads.map(p => ({
-      id: p.id,
-      body: p.body,
-      nonce: uint8ToBase64Url(p.nonce)
-    }))
+    // [magic][version] then repeated payloads
+    const magic = 0xdaab0000
+    const version = 1
 
-    const res = await fetch(`${baseUrl}/content/batchPut`, {
-      method: "POST",
-      headers,
-      body: encode(encodedPayloads) as BufferSource,
+    let totalSize = 4 + 2
+    const entries = payloads.map(p => {
+      const idBytes = base64urlToUint8(p.id)
+      const nonceBytes = p.nonce instanceof Uint8Array ? p.nonce : new Uint8Array(p.nonce)
+      const bodyBytes = p.body instanceof Uint8Array ? p.body : new Uint8Array(p.body)
+      const size = 2 + nonceBytes.length + 2 + idBytes.length + 8 + bodyBytes.length
+      totalSize += size
+      return { idBytes, nonceBytes, bodyBytes }
     })
 
-    if (res.status === 204) {
-      return
+    const buffer = new ArrayBuffer(totalSize)
+    const view = new DataView(buffer)
+    const uint8 = new Uint8Array(buffer)
+
+    let offset = 0
+    view.setUint32(offset, magic, false); offset += 4
+    view.setUint16(offset, version, false); offset += 2
+
+    for (const { idBytes, nonceBytes, bodyBytes } of entries) {
+      view.setUint16(offset, nonceBytes.length, false); offset += 2
+      uint8.set(nonceBytes, offset); offset += nonceBytes.length
+
+      view.setUint16(offset, idBytes.length, false); offset += 2
+      uint8.set(idBytes, offset); offset += idBytes.length
+
+      view.setBigUint64(offset, BigInt(bodyBytes.length), false); offset += 8
+      uint8.set(bodyBytes, offset); offset += bodyBytes.length
     }
 
-    if (res.status === 400) {
+    const res = await fetch(`${baseUrl}/content/batch`, {
+      method: "PUT",
+      headers,
+      body: buffer,
+    })
+
+    if (res.status === 204) return
+
+    if (res.status === 400 || res.status === 403) {
       const errorBody = await res.arrayBuffer()
-      const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
-      throw new Error(errorDecoded.error)
+      try {
+        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
+        throw new Error(errorDecoded.error)
+      } catch (e) {
+        throw new Error(new TextDecoder().decode(errorBody))
+      }
     }
 
-    if (res.status === 401) {
-      throw new Error("Unauthorized")
-    }
-
-    if (res.status === 403) {
-      throw new Error("Forbidden: object is restricted")
-    }
+    if (res.status === 401) throw new Error("Unauthorized")
 
     throw new Error(`Unexpected status ${res.status} on batchPut`)
   }
 
-  async function batchGetContent(objectIds: [Uint8Array, Uint8Array][]): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
+  async function batchGetContent(objectIds: Uint8Array[]): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
     const headers = {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
       Authorization: `Bearer ${authToken}`,
     }
+
 
     const res = await fetch(`${baseUrl}/content/batch`, {
       method: "POST",
@@ -98,8 +103,14 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
     if (res.status === 400 || res.status === 404) {
       const errorBody = await res.arrayBuffer()
-      const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
-      throw new Error(errorDecoded.error)
+      try {
+        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
+        throw new Error(errorDecoded.error)
+      } catch (e) {
+        const er = new TextDecoder().decode(errorBody)
+        throw new Error(er)
+      }
+      
     }
 
     if (res.status === 401) {
@@ -175,8 +186,4 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     putAvatar,
     getAvatar,
   }
-}
-
-function uint8ToBase64Url(u8: Uint8Array) {
-  return btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }

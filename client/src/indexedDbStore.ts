@@ -2,7 +2,6 @@ import { openDB, DBSchema } from "idb"
 import { bytesToBase64, KeyPackage, PrivateKeyPackage } from "ts-mls"
 import { PostManifestPage } from "./manifest"
 import { LocalStore } from "./localStore"
-import { defaultClientConfig } from "ts-mls/clientConfig.js"
 import { fromJsonString, toJsonString } from "ts-mls/codec/json.js"
 import { clientConfig } from "./mlsConfig"
 
