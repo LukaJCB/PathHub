@@ -44,7 +44,7 @@ describe("Registration + login flow", () => {
 
     const res1 = await app.inject({
       method: "POST",
-      url: "/startRegistration",
+      url: "/auth/startRegistration",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -76,7 +76,7 @@ describe("Registration + login flow", () => {
 
     const res2 = await app.inject({
       method: "POST",
-      url: "/finishRegistration",
+      url: "/auth/finishRegistration",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -95,7 +95,7 @@ describe("Registration + login flow", () => {
 
     const knownRes = await app.inject({
       method: "POST",
-      url: "/startLogin",
+      url: "/auth/startLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -105,7 +105,7 @@ describe("Registration + login flow", () => {
 
     const unknownRes = await app.inject({
       method: "POST",
-      url: "/startLogin",
+      url: "/auth/startLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -124,7 +124,7 @@ describe("Registration + login flow", () => {
 
     const res1 = await app.inject({
       method: "POST",
-      url: "/startLogin",
+      url: "/auth/startLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -143,7 +143,7 @@ describe("Registration + login flow", () => {
 
     const res2 = await app.inject({
       method: "POST",
-      url: "/finishLogin",
+      url: "/auth/finishLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -190,7 +190,7 @@ describe("Registration + login flow", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/finishLogin",
+      url: "/auth/finishLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -208,7 +208,7 @@ describe("Registration + login flow", () => {
 
     const res2 = await app.inject({
       method: "POST",
-      url: "/finishLogin",
+      url: "/auth/finishLogin",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",

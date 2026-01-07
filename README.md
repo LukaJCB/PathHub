@@ -2,27 +2,15 @@
 
 
 ## Server
-To run the individual server components locally:
+To run the server component locally:
 
 ```
 docker-compose up -d
 pnpm install
+pnpm generate-keys
 pnpm start
 ```
 
-
-For `user-service` you will need to generate keys like so:
-
-
-```
-pnpm generate-keys
-```
-
-For `message-broker` you will need to copy the generated key into the .env file:
-
-```
-SIGNATURE_PUBLIC_KEY=MCowBQYDK2VwAyEAZRvKgq5zyOMqtzv8Jbg5aCQPQryVPYSORcBcwGN9Cz8
-```
 
 ## Client
 

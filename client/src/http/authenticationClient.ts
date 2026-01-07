@@ -79,18 +79,18 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
   }
 
   return {
-    startRegistration: (body) => postCBOR<typeof body, { response: string }>("/startRegistration", body),
+    startRegistration: (body) => postCBOR<typeof body, { response: string }>("/auth/startRegistration", body),
 
-    finishRegistration: (body) => postCBOR<typeof body, { userId: string }>("/finishRegistration", body),
+    finishRegistration: (body) => postCBOR<typeof body, { userId: string }>("/auth/finishRegistration", body),
 
-    startLogin: (body) => postCBOR<typeof body, { response: string }>("/startLogin", body),
+    startLogin: (body) => postCBOR<typeof body, { response: string }>("/auth/startLogin", body),
 
-    finishLogin: (body) => postCBOR<typeof body, { token: string; manifest: string, encryptedMasterKey: Uint8Array, nonce: Uint8Array, salt: Uint8Array }>("/finishLogin", body),
+    finishLogin: (body) => postCBOR<typeof body, { token: string; manifest: string, encryptedMasterKey: Uint8Array, nonce: Uint8Array, salt: Uint8Array }>("/auth/finishLogin", body),
 
-    getUserInfo: (body, token) => postCBORWithAuth<typeof body,{ username: string, key: Uint8Array, userid: string }[]>(`/userInfo`, body, token),
+    getUserInfo: (body, token) => postCBORWithAuth<typeof body,{ username: string, key: Uint8Array, userid: string }[]>(`/auth/userInfo`, body, token),
 
     lookupUser: async (username, token) => {
-      const res = await fetch(baseUrl + "/lookupUser", {
+      const res = await fetch(baseUrl + "/auth/lookupUser", {
         method: "POST",
         headers: {...defaultHeaders, Authorization: `Bearer ${token}` },
         body: encode({ username }) as BufferSource,
@@ -101,7 +101,7 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
       }
 
       if (!res.ok) {
-        throw new Error(`Unexpected status ${res.status} from /lookupUser`)
+        throw new Error(`Unexpected status ${res.status} from /auth/lookupUser`)
       }
 
       const arrayBuffer = await res.arrayBuffer()

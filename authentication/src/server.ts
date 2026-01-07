@@ -83,6 +83,7 @@ const start = async () => {
     minioSecretAccessKey,
     bucketName,
     bucketNamePublic,
+    messageTtlSeconds: 86400,
   })
   try {
     await app.listen({ port: 3000 })

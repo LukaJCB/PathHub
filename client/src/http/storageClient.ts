@@ -126,7 +126,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       Authorization: `Bearer ${authToken}`,
     }
 
-    const res = await fetch(`${baseUrl}/avatar`, {
+    const res = await fetch(`${baseUrl}/content/avatar`, {
       method: "PUT",
       headers,
       body: toBufferSource(body),
@@ -154,7 +154,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       Authorization: `Bearer ${authToken}`,
     }
 
-    const res = await fetch(`${baseUrl}/avatar/${encodeURIComponent(userId)}`, {
+    const res = await fetch(`${baseUrl}/content/avatar/${encodeURIComponent(userId)}`, {
       method: "GET",
       headers,
     })

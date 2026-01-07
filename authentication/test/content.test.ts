@@ -397,7 +397,7 @@ describe("MinIO content upload and fetch", () => {
 
     const putRes = await app.inject({
       method: "PUT",
-      url: "/avatar",
+      url: "/content/avatar",
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "image/png",
@@ -409,7 +409,7 @@ describe("MinIO content upload and fetch", () => {
 
     const getRes = await app.inject({
       method: "GET",
-      url: `/avatar/${testUserId}`,
+      url: `/content/avatar/${testUserId}`,
       headers: {
         authorization: `Bearer ${token}`,
       },
@@ -425,7 +425,7 @@ describe("MinIO content upload and fetch", () => {
 
     const putNoAuth = await app.inject({
       method: "PUT",
-      url: "/avatar",
+      url: "/content/avatar",
       headers: {
         "content-type": "image/jpeg",
       },
@@ -435,13 +435,13 @@ describe("MinIO content upload and fetch", () => {
 
     const getNoAuth = await app.inject({
       method: "GET",
-      url: `/avatar/${testUserId}`,
+      url: `/content/avatar/${testUserId}`,
     })
     expect(getNoAuth.statusCode).toBe(401)
 
     const putBadAuth = await app.inject({
       method: "PUT",
-      url: "/avatar",
+      url: "/content/avatar",
       headers: {
         authorization: `Bearer invalid.token.here`,
         "content-type": "image/jpeg",
@@ -452,7 +452,7 @@ describe("MinIO content upload and fetch", () => {
 
     const getBadAuth = await app.inject({
       method: "GET",
-      url: `/avatar/${testUserId}`,
+      url: `/content/avatar/${testUserId}`,
       headers: {
         authorization: `Bearer invalid.token.here`,
       },
@@ -471,7 +471,7 @@ describe("MinIO content upload and fetch", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: "/avatar/no-avatar-user",
+      url: "/content/avatar/no-avatar-user",
       headers: {
         authorization: `Bearer ${newToken}`,
       },
@@ -485,7 +485,7 @@ describe("MinIO content upload and fetch", () => {
 
     const missingType = await app.inject({
       method: "PUT",
-      url: "/avatar",
+      url: "/content/avatar",
       headers: {
         authorization: `Bearer ${token}`,
       },
@@ -495,7 +495,7 @@ describe("MinIO content upload and fetch", () => {
 
     const unsupportedType = await app.inject({
       method: "PUT",
-      url: "/avatar",
+      url: "/content/avatar",
       headers: {
         authorization: `Bearer ${token}`,
         "content-type": "text/plain",

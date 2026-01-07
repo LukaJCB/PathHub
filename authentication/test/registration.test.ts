@@ -34,7 +34,7 @@ describe("Registration", () => {
     await app.close()
   })
 
-  const url = "/startRegistration"
+  const url = "/auth/startRegistration"
 
   const { registrationRequest } = opaque.client.startRegistration({ password: "password" })
 
@@ -139,7 +139,7 @@ describe("Registration", () => {
 
     const res2 = await app.inject({
       method: "POST",
-      url: "/finishRegistration",
+      url: "/auth/finishRegistration",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -163,7 +163,7 @@ describe("Registration", () => {
 
     const res3 = await app.inject({
       method: "POST",
-      url: "/startRegistration",
+      url: "/auth/startRegistration",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",

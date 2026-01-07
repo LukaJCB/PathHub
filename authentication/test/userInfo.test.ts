@@ -12,7 +12,7 @@ async function registerUser(app: FastifyInstance, username: string, signingKey: 
 
   const res1 = await app.inject({
     method: "POST",
-    url: "/startRegistration",
+    url: "/auth/startRegistration",
     headers: {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
@@ -44,7 +44,7 @@ async function registerUser(app: FastifyInstance, username: string, signingKey: 
 
   const res2 = await app.inject({
     method: "POST",
-    url: "/finishRegistration",
+    url: "/auth/finishRegistration",
     headers: {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
@@ -62,7 +62,7 @@ async function loginUser(app: FastifyInstance, username: string): Promise<string
 
   const res1 = await app.inject({
     method: "POST",
-    url: "/startLogin",
+    url: "/auth/startLogin",
     headers: {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
@@ -81,7 +81,7 @@ async function loginUser(app: FastifyInstance, username: string): Promise<string
 
   const res2 = await app.inject({
     method: "POST",
-    url: "/finishLogin",
+    url: "/auth/finishLogin",
     headers: {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
@@ -152,7 +152,7 @@ describe("/userInfo endpoint", () => {
   it("should return user info for existing users", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -182,7 +182,7 @@ describe("/userInfo endpoint", () => {
   it("should return all requested users when all exist", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -218,7 +218,7 @@ describe("/userInfo endpoint", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -236,7 +236,7 @@ describe("/userInfo endpoint", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -251,7 +251,7 @@ describe("/userInfo endpoint", () => {
   it("should return 401 when no authorization token is provided", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -265,7 +265,7 @@ describe("/userInfo endpoint", () => {
   it("should return 401 when invalid authorization token is provided", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -282,7 +282,7 @@ describe("/userInfo endpoint", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -304,7 +304,7 @@ describe("/userInfo endpoint", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/userInfo",
+      url: "/auth/userInfo",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -373,7 +373,7 @@ describe("/lookupUser endpoint", () => {
   it("should successfully lookup user by username", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/lookupUser",
+      url: "/auth/lookupUser",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -393,7 +393,7 @@ describe("/lookupUser endpoint", () => {
   it("should return 404 when looking up non-existent username", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/lookupUser",
+      url: "/auth/lookupUser",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -408,7 +408,7 @@ describe("/lookupUser endpoint", () => {
   it("should return 401 when no authorization token is provided", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/lookupUser",
+      url: "/auth/lookupUser",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -422,7 +422,7 @@ describe("/lookupUser endpoint", () => {
   it("should return 401 when invalid authorization token is provided", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/lookupUser",
+      url: "/auth/lookupUser",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
@@ -437,7 +437,7 @@ describe("/lookupUser endpoint", () => {
   it("should lookup own user by username", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/lookupUser",
+      url: "/auth/lookupUser",
       headers: {
         "Content-Type": "application/cbor",
         Accept: "application/cbor",
