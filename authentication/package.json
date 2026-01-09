@@ -54,6 +54,5 @@
     "format:check": "prettier -c .",
     "verify-madge": "madge --extensions ts --circular src",
     "verify": "pnpm build && pnpm format:check && pnpm verify-madge && pnpm lint && pnpm test"
-  },
-  "packageManager": "pnpm@10.17.1"
+  }
 }
