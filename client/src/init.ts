@@ -1,17 +1,21 @@
 import {
   CiphersuiteImpl,
   ClientState,
+  clientStateDecoder,
   createGroup,
   Credential,
-  decodeGroupState,
-  defaultCapabilities,
+  decode,
+  defaultCredentialTypes,
   defaultCryptoProvider,
-  defaultLifetime,
-  encodeRequiredCapabilities,
+  defaultExtensionTypes,
+  encode,
   generateKeyPackage,
   getCiphersuiteFromName,
   getCiphersuiteImpl,
+  nodeTypes,
   RequiredCapabilities,
+  requiredCapabilitiesEncoder,
+  unsafeTestingAuthenticationService,
 } from "ts-mls"
 import { clientConfig } from "./mlsConfig"
 import { deriveGroupIdFromUserId } from "./mlsInteractions";
@@ -21,6 +25,7 @@ import { encryptAndStore, encryptAndStoreWithPostSecret, storeIndexes } from "./
 import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest, encodeFollowerGroupState } from "./codec/encode";
 import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
+import { isDefaultCredential } from "ts-mls/credential.js";
 
 export interface SignatureKeyPair {
   signKey: Uint8Array
@@ -37,20 +42,19 @@ export async function initGroupState(userId: string): Promise<[ClientState, Sign
   const requiredCapabilities: RequiredCapabilities = {
     extensionTypes: [],
     proposalTypes: [],
-    credentialTypes: ["basic"],
+    credentialTypes: [defaultCredentialTypes.basic],
   }
 
-  const kp = await generateKeyPackage(
+  const kp = await generateKeyPackage({
     credential,
-    defaultCapabilities(),
-    defaultLifetime,
-    [{ extensionType: "required_capabilities", extensionData: encodeRequiredCapabilities(requiredCapabilities) }],
-    impl,
-  )
+    cipherSuite: impl
+  })
 
   const groupId = await deriveGroupIdFromUserId(userId)
 
-  const group = await createGroup(groupId, kp.publicPackage, kp.privatePackage, [], impl, clientConfig)
+  const group = await createGroup({ groupId,keyPackage: kp.publicPackage, privateKeyPackage: kp.privatePackage,extensions: [
+    { extensionType: defaultExtensionTypes.required_capabilities, extensionData: encode(requiredCapabilitiesEncoder, requiredCapabilities) }], 
+   context: {cipherSuite: impl, authService: unsafeTestingAuthenticationService, clientConfig}})
 
   const keyPair = {signKey: kp.privatePackage.signaturePrivateKey, publicKey: kp.publicPackage.leafNode.signaturePublicKey}
   return [group, keyPair]
@@ -60,11 +64,11 @@ export async function initGroupState(userId: string): Promise<[ClientState, Sign
 
 
 export function createCredential(userId: string): Credential {
-  return { credentialType: "basic", identity: new TextEncoder().encode(userId) };
+  return { credentialType: defaultCredentialTypes.basic, identity: new TextEncoder().encode(userId) };
 }
 
 export function getUserIdFromCredential(cred: Credential): string {
-  if (cred.credentialType !== 'basic') throw new Error("Wrong cred type")
+  if (!isDefaultCredential(cred) || cred.credentialType !== defaultCredentialTypes.basic) throw new Error("Wrong cred type")
   
   return new TextDecoder().decode(cred.identity)
 }
@@ -72,7 +76,7 @@ export function getUserIdFromCredential(cred: Credential): string {
 export function getKeyPairFromGroupState(state: ClientState): SignatureKeyPair {
   const idx = leafToNodeIndex(toLeafIndex(state.privatePath.leafIndex))
   const leaf = state.ratchetTree[idx]
-  if (leaf?.nodeType !== "leaf") throw new Error("Expected leaf node")
+  if (leaf?.nodeType !== nodeTypes.leaf) throw new Error("Expected leaf node")
   return {
     signKey: state.signaturePrivateKey,
     publicKey: leaf.leaf.signaturePublicKey
@@ -89,7 +93,7 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
       retrieveAndDecryptGroupState(rs, uint8ToBase64Url(await getGroupStateIdFromManifest(y, userId)), masterKey)
     ])
 
-    const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+    const groupState =  decode(clientStateDecoder, followerGroupState!.groupState)!
 
     return [y, postManifest!, page!, groupState, getKeyPairFromGroupState(groupState)]
   } else {

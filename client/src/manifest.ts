@@ -33,9 +33,11 @@ export interface DerivedMetrics {
   duration: number
 }
 
+//TODO should the post description be moved to inside main?
 export interface PostMeta {
   title: string
   date: number
+  description: string
   metrics: DerivedMetrics
   totalLikes: number
   sampleLikes: InteractionLike[]

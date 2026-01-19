@@ -1,8 +1,7 @@
 import { decode } from "cbor-x";
 import { PostManifestPage, Manifest, PostManifest, FollowerManifest, FollowerGroupState, InteractionComment, InteractionLike } from "../manifest";
 import { CommentTbs, LikeTbs } from "../postInteraction";
-import { ClientState, decodeGroupState, PrivateKeyPackage } from "ts-mls";
-import { clientConfig } from "../mlsConfig";
+import { ClientState, PrivateKeyPackage, decode as decodeMls, clientStateDecoder } from "ts-mls";
 import { FollowRequests } from "../followRequest";
 import { Message, MessagePublic } from "../message";
 
@@ -43,7 +42,7 @@ export function decodeRoute(r: Uint8Array): [number, number, number][] {
 
 
 export function decodeClientState(gs: Uint8Array): ClientState {
-    return {...decodeGroupState(gs, 0)![0], clientConfig: clientConfig } //todo proper config
+    return decodeMls(clientStateDecoder, gs)!
 }
 
 

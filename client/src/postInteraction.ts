@@ -1,5 +1,5 @@
 import { PostManifestPage, PostMeta, StorageIdentifier, PostManifest, Manifest, FollowerGroupState, InteractionComment, InteractionLike } from "./manifest";
-import {  CiphersuiteImpl, ClientState, createApplicationMessage, decodeGroupState, encodeGroupState, encodeMlsMessage } from "ts-mls";
+import {  CiphersuiteImpl, ClientState, createApplicationMessage,encode, unsafeTestingAuthenticationService,clientStateDecoder, clientStateEncoder,decode, mlsMessageEncoder } from "ts-mls";
 import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent, retrieveAndDecryptGroupState, uint8ToBase64Url } from "./remoteStore";
 import { toBufferSource } from "ts-mls/util/byteArray.js";
@@ -8,7 +8,8 @@ import { decodeComments, decodeLikes } from "./codec/decode";
 import { Message, MessagePublic } from "./message";
 import { MessageClient } from "./http/messageClient";
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions";
-import { clientConfig } from "./mlsConfig";
+
+
 
 
 export async function commentPost(
@@ -67,17 +68,17 @@ export async function commentPost(
 
     const followerGroupStateId = manifest.groupStates.get(uint8ToBase64Url(await deriveGroupIdFromUserId(posterId)))!
     const followerGroupState = await retrieveAndDecryptGroupState(remoteStore, uint8ToBase64Url(followerGroupStateId), masterKey)
-    const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
-    const res = await createApplicationMessage(groupState, encodeMessage(msg), impl)
+    const groupState =  decode(clientStateDecoder, followerGroupState!.groupState)!
+    const res = await createApplicationMessage({ context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService }, state: groupState, message: encodeMessage(msg) })
 
     const mp: MessagePublic = {
       kind: "GroupMessage",
-      mlsMessage: encodeMlsMessage({ wireformat: "mls_private_message", version: "mls10", privateMessage: res.privateMessage })
+      mlsMessage: encode(mlsMessageEncoder, res.message)
     }
 
     const newFollowerGroupState: FollowerGroupState = {
       ...followerGroupState!,
-      groupState: encodeGroupState(res.newState)
+      groupState: encode(clientStateEncoder, res.newState)
     }
 
     console.log(recipientsFromMlsState([], groupState))

@@ -5,12 +5,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { allowFollow, requestFollow } from "pathhub-client/src/followRequest.js";
 import { createCredential, getKeyPairFromGroupState } from "pathhub-client/src/init.js";
 import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js";
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
-import { decodeKeyPackage } from "ts-mls/keyPackage.js";
+import { decode, getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 import { getUserInfo } from "pathhub-client/src/userInfo.js";
 import { getAvatarImageUrl } from "./App";
 import { Link } from "react-router";
+import { keyPackageDecoder } from "ts-mls/keyPackage.js";
 
 
 export const FollowRequestsView: React.FC = () => {
@@ -53,7 +53,7 @@ export const FollowRequestsView: React.FC = () => {
     
     async function acceptFollower(i: { followerId: string; keyPackage: Uint8Array; }): Promise<void> {
 
-        const kp = decodeKeyPackage(i.keyPackage, 0)![0]
+        const kp = decode(keyPackageDecoder,i.keyPackage)!
 
         const [newFollowRequests, newGroup, newManifest, newPostManifest] = await allowFollow(i.followerId, user.id, kp, user.followRequests, user.currentPage, user.postManifest, 
             user.manifest, base64urlToUint8(user.manifestId), user.masterKey, remoteStore, messager, user.ownGroupState,

@@ -99,8 +99,8 @@ importers:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
       ts-mls:
-        specifier: 1.5.1
-        version: 1.5.1(@noble/ciphers@2.1.1)
+        specifier: 2.0.0-rc.2
+        version: 2.0.0-rc.2(@noble/ciphers@2.1.1)
     devDependencies:
       '@eslint/js':
         specifier: 9.37.0
@@ -165,6 +165,9 @@ importers:
       cbor-x:
         specifier: 1.6.0
         version: 1.6.0
+      fit-file-parser:
+        specifier: ^2.1.0
+        version: 2.1.0
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -196,8 +199,8 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18
       ts-mls:
-        specifier: 1.5.1
-        version: 1.5.1(@noble/ciphers@2.1.1)
+        specifier: 2.0.0-rc.2
+        version: 2.0.0-rc.2(@noble/ciphers@2.1.1)
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -1838,6 +1841,9 @@ packages:
   buffer@5.7.1:
     resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
 
+  buffer@6.0.3:
+    resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
+
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
     engines: {node: '>=8'}
@@ -2292,6 +2298,9 @@ packages:
   find-up@5.0.0:
     resolution: {integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==}
     engines: {node: '>=10'}
+
+  fit-file-parser@2.1.0:
+    resolution: {integrity: sha512-PICERthpGtbEkrBm9lDj/oGJ1gCkFUWmkaGg2wW5idyuVEsAGuz977gbl7J1j6WJj7TiwrohxKQXjrG6Xb1i2Q==}
 
   flat-cache@4.0.1:
     resolution: {integrity: sha512-f7ccFPK3SXFHpx15UIGyRJ/FJQctuKZ0zVuN3frBo4HnK3cay9VEW0R6yPYFHC0AgqhukPzKjq22t5DmAyqGyw==}
@@ -3469,10 +3478,11 @@ packages:
     resolution: {integrity: sha512-XyLVuhBVvdJTJr2FJJV2L1pc4MwSjMhcunRVgDE9k4wbb2ee7ORYnPewxMWUav12vxyfUM686MSGsqnVRIInuw==}
     engines: {node: '>=18'}
 
-  ts-mls@1.5.1:
-    resolution: {integrity: sha512-YfRO1Wuy0Fpo/eunzV/TyE7rPAKEZz6eOLzJtgu6khP3axm2Dc09AT6mlP2N3213teCa8jhTAeTYjG0p4AFqgA==}
+  ts-mls@2.0.0-rc.2:
+    resolution: {integrity: sha512-nlRZnG4U+wQRiP4KbccvKiU21Xv2DGyIl+b98MHZe4afs7o/AF8fTwIfSVrEPK6C8lP/qcZvzYtm2FIKZvRw6Q==}
     peerDependencies:
       '@hpke/chacha20poly1305': 1.7.1
+      '@hpke/dhkem-x448': 1.6.4
       '@hpke/hybridkem-x-wing': 0.6.1
       '@hpke/ml-kem': 0.2.1
       '@noble/ciphers': 2.1.1
@@ -3480,6 +3490,8 @@ packages:
       '@noble/post-quantum': 0.5.2
     peerDependenciesMeta:
       '@hpke/chacha20poly1305':
+        optional: true
+      '@hpke/dhkem-x448':
         optional: true
       '@hpke/hybridkem-x-wing':
         optional: true
@@ -5623,6 +5635,11 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
+  buffer@6.0.3:
+    dependencies:
+      base64-js: 1.5.1
+      ieee754: 1.2.1
+
   cac@6.7.14: {}
 
   call-bind-apply-helpers@1.0.2:
@@ -6240,6 +6257,10 @@ snapshots:
     dependencies:
       locate-path: 6.0.0
       path-exists: 4.0.0
+
+  fit-file-parser@2.1.0:
+    dependencies:
+      buffer: 6.0.3
 
   flat-cache@4.0.1:
     dependencies:
@@ -7441,7 +7462,7 @@ snapshots:
       '@ts-graphviz/common': 2.1.5
       '@ts-graphviz/core': 2.0.7
 
-  ts-mls@1.5.1(@noble/ciphers@2.1.1):
+  ts-mls@2.0.0-rc.2(@noble/ciphers@2.1.1):
     dependencies:
       '@hpke/core': 1.7.5
       '@noble/ciphers': 2.1.1

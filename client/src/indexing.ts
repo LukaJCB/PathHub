@@ -26,7 +26,6 @@ export async function getPostLocatorAndMaps(manifest: Manifest, masterKey: Uint8
   const idxManifest = decode(new Uint8Array(decrypted)) as IndexManifest
   
   const decryptedIdx = await retrieveAndDecryptContent(rs, [idxManifest.postLocator, masterKey])
-  console.log(decryptedIdx.byteLength)
   
   const postLocator: Map<string, PostLocatorEntry> = decode(new Uint8Array(decryptedIdx))
   return [postLocator, idxManifest.typeMap, idxManifest.gearMap] as const

@@ -30,7 +30,7 @@
     "idb": "^8.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "ts-mls": "1.5.1"
+    "ts-mls": "2.0.0-rc.2"
   },
   "devDependencies": {
     "@eslint/js": "9.37.0",
@@ -57,6 +57,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "dev": "tsc --watch",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "lint": "eslint src/",

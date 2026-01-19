@@ -1,11 +1,9 @@
-import { CiphersuiteImpl, ClientState, decodeGroupState, decodeMlsMessage, emptyPskIndex, encodeGroupState, processPrivateMessage } from "ts-mls";
+import { CiphersuiteImpl, ClientState, clientStateDecoder, mlsMessageDecoder, clientStateEncoder, processPrivateMessage, MlsMessage, wireformats, decode, unsafeTestingAuthenticationService, encode } from "ts-mls";
 import { MessageClient } from "./http/messageClient";
-import { MLSMessage } from "ts-mls/message.js";
 import { FollowRequests, processAllowFollow, receiveFollowRequest } from "./followRequest";
 import { FollowerManifest, Manifest, PostManifest, PostManifestPage, PostMeta, StorageIdentifier } from "./manifest";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptGroupState, retrieveAndDecryptPostManifestPage, uint8ToBase64Url } from "./remoteStore";
 import { decodeMessage, decodeMessagePublic } from "./codec/decode";
-import { clientConfig } from "./mlsConfig";
 import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
 import { encodeComments, encodeFollowerGroupState, encodeLikes } from "./codec/encode";
 import { updateCommentList, updateLikeList } from "./postInteraction";
@@ -35,7 +33,7 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, PostManifest, PostMan
         const mp = decodeMessagePublic(m.payload)
 
         if (mp.kind === 'GroupMessage') {
-          const message = decodeMlsMessage(mp.mlsMessage, 0)![0]
+          const message = decode(mlsMessageDecoder, mp.mlsMessage)!
           const result = await processMlsMessage(message, ownGroupState, m.sender, userId, postManifest, postManifestPage, currentManifest, manifestId, masterKey, currentFollowRequests, remoteStore, impl)
 
           currentFollowRequests = result[0]
@@ -66,7 +64,7 @@ impl: CiphersuiteImpl): Promise<[FollowRequests, Manifest, PostManifest, PostMan
 
 
 export async function processMlsMessage(
-    msg: MLSMessage,
+    msg: MlsMessage,
     mlsGroup: ClientState,
     sender: string, 
     userId: string,
@@ -81,16 +79,16 @@ export async function processMlsMessage(
 ): Promise<[FollowRequests, Manifest, FollowerManifest | undefined, ClientState | undefined, PostManifestPage, PostManifest]> {
 
     switch (msg.wireformat) {
-        case "mls_welcome": {
+        case wireformats.mls_welcome: {
             const result = await processAllowFollow(sender, msg.welcome, followRequests, masterKey, manifest, manifestId, remoteStore, impl)
             return [result[0],result[1],result[2],result[3], postManifestPage, postManifest]
         }
-        case "mls_private_message": {
+        case wireformats.mls_private_message: {
             const groupStateId = manifest.groupStates.get(uint8ToBase64Url(msg.privateMessage.groupId))!
             const followerGroupState = await retrieveAndDecryptGroupState(remoteStore, uint8ToBase64Url(groupStateId), masterKey)
-            const groupState = {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig}
+            const groupState = decode(clientStateDecoder,followerGroupState!.groupState)!
             //todo only allow commits from group owner
-            const result = await processPrivateMessage(groupState, msg.privateMessage, emptyPskIndex, impl) 
+            const result = await processPrivateMessage({ state: groupState, privateMessage: msg.privateMessage, context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService } }) 
 
             console.log(result)
             if (result.kind === "applicationMessage") {
@@ -152,13 +150,13 @@ export async function processMlsMessage(
 
                         const newMap = followerGroupState?.cachedInteractions.set(message.interaction.postId, newInteractions)
 
-                        const newFollowerGroupState = { groupState: encodeGroupState(result.newState), cachedInteractions: newMap!}
+                        const newFollowerGroupState = { groupState: encode(clientStateEncoder, result.newState), cachedInteractions: newMap!}
 
                         await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(newFollowerGroupState), groupStateId)
                     }
                 }
             } else if (result.kind === "newState") {
-                const newFollowerGroupState = {...followerGroupState!, groupState: encodeGroupState(result.newState)}
+                const newFollowerGroupState = {...followerGroupState!, groupState: encode(clientStateEncoder, result.newState)}
 
                 await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(newFollowerGroupState), groupStateId)
                 //todo flush cachedInteractions whenever a new commit arrives

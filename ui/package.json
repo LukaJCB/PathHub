@@ -22,6 +22,7 @@
     "@types/papaparse": "5.5.1",
     "@zip.js/zip.js": "^2.8.11",
     "cbor-x": "1.6.0",
+    "fit-file-parser": "^2.1.0",
     "leaflet": "^1.9.4",
     "maplibre-gl": "5.9.0",
     "modern-screenshot": "^4.6.7",
@@ -32,7 +33,7 @@
     "react-leaflet": "^5.0.0",
     "react-router": "^7.9.6",
     "tailwindcss": "^4.1.18",
-    "ts-mls": "1.5.1"
+    "ts-mls": "2.0.0-rc.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

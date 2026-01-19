@@ -13,7 +13,6 @@ export const authService: AuthenticationService = {
 }
 
 export const clientConfig: ClientConfig = {
-  authService,
   keyPackageEqualityConfig: defaultKeyPackageEqualityConfig,
   keyRetentionConfig: defaultKeyRetentionConfig,
   lifetimeConfig: {

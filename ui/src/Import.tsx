@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { ZipReader, BlobReader, BlobWriter, Entry } from "@zip.js/zip.js";
 import Papa from 'papaparse'
-import { parseTrackData } from "./FileUploader";
-import { encode } from "cbor-x";
+import { maximumGainThreshold, minimumDistanceThreshold, minimumGainThreshold, parseFitData, parseGpxData, ParseResult, parseTcxData } from "./FileUploader";
 import { base64urlToUint8, createRemoteStore } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { useAuthRequired } from "./useAuth";
@@ -11,7 +10,7 @@ import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import { MessageClient } from "pathhub-client/src/http/messageClient.js";
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
 import { encodeRoute } from "pathhub-client/src/codec/encode.js";
-import { decodeBlobWithMime, encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
+import { encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js";
 import { ThumbnailRenderer } from "./ThumbnailRenderer";
 import { Link } from "react-router";
 import { updateAvatar } from "pathhub-client/src/userInfo.js";
@@ -154,6 +153,17 @@ export function BulkImport() {
     setIsDragging(false);
   };
 
+  const decompressGzipToText = async (blob: Blob): Promise<string> => {
+    const stream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(stream).text();
+  };
+
+  const decompressGzipToArrayBuffer = async (blob: Blob): Promise<ArrayBuffer> => {
+    const stream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
+    const buffer = await new Response(stream).arrayBuffer();
+    return buffer;
+  };
+
   
 
   async function processZip(file: File) {
@@ -202,17 +212,25 @@ export function BulkImport() {
     let currentPostManifest = user.postManifest
     let currentManifest = user.manifest
     let currentGroup = user.ownGroupState
+    let parseIssues = 0
     for (const [n, record] of result.entries()) {
         
         if (!record.Filename || record.Filename === "#error#") {
+            parseIssues++
             continue;
         }
         const entry = activityMap[record.Filename]
         if (entry.directory === true) throw new Error("No good")
+            const name = entry.filename.toLowerCase();
+            const isGpx = name.endsWith(".gpx") || name.endsWith(".gpx.gz");
+            const isTcx = name.endsWith(".tcx") || name.endsWith(".tcx.gz");
+            const isFit = name.endsWith(".fit") || name.endsWith(".fit.gz");
 
-        if (!entry.filename.endsWith(".gpx")) {
-            continue;
-        }
+            if (!isGpx && !isTcx && !isFit) {
+              parseIssues++
+              console.log("couldn't parse")
+              continue;
+            }
         const mediaUrls: string[] = record.Media.split("|")
 
         const media: Uint8Array[] = []
@@ -236,12 +254,24 @@ export function BulkImport() {
         const postType = record["Activity Type"]
         const gear = record["Activity Gear"]
 
-        const blob = await entry.getData(new BlobWriter("application/xml"))
-        const text = await blob.text()
+        const description = record["Activity Description"]
 
-        const parsed = parseTrackData(text, 3, 0.09)
+        const blob = await entry.getData(new BlobWriter("application/octet-stream"))
+
+        let parsed: ParseResult | undefined;
+        if (isGpx) {
+          const text = name.endsWith(".gz") ? await decompressGzipToText(blob) : await blob.text();
+          parsed = parseGpxData(text, minimumDistanceThreshold, minimumGainThreshold, maximumGainThreshold);
+        } else if (isTcx) {
+          const text = name.endsWith(".gz") ? await decompressGzipToText(blob) : await blob.text();
+          parsed = parseTcxData(text, minimumDistanceThreshold, minimumGainThreshold, maximumGainThreshold);
+        } else if (isFit) {
+          const bytes = name.endsWith(".gz") ? await decompressGzipToArrayBuffer(blob) : await blob.arrayBuffer();
+          parsed = await parseFitData(bytes, minimumDistanceThreshold, minimumGainThreshold, maximumGainThreshold);
+        }
 
         if (!parsed) {
+          parseIssues++
             continue;
         }
 
@@ -257,6 +287,7 @@ export function BulkImport() {
               thumb,
               media,
               date,
+              description,
               postType || undefined,
               gear || undefined,
               user.id,
@@ -281,6 +312,7 @@ export function BulkImport() {
     thumbRenderer.destroy()
     updateUser({currentPage: currentPage, postManifest: currentPostManifest, manifest: currentManifest, ownGroupState: currentGroup})
     setProgress(result.length)
+    console.log(`total errors: ${parseIssues}`)
 
     await zipReader.close();
   }

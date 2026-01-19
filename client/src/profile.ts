@@ -1,8 +1,7 @@
-import { CiphersuiteImpl, ClientState, decodeGroupState } from "ts-mls";
+import { CiphersuiteImpl, ClientState, clientStateDecoder,decode } from "ts-mls";
 import { Manifest, PostManifest, PostManifestPage, StorageIdentifier } from "./manifest";
 import { RemoteStore, retrieveAndDecryptFollowerPostManifest, retrieveAndDecryptGroupState, retrieveAndDecryptPostManifestPage, uint8ToBase64Url } from "./remoteStore";
 import { getGroupStateIdFromManifest } from "./init";
-import { clientConfig } from "./mlsConfig";
 
 export async function getPageForUser(manifest: Manifest, 
     currentPage: PostManifestPage, 
@@ -17,7 +16,7 @@ export async function getPageForUser(manifest: Manifest,
         if (followerManifest) {
             const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
             const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-            const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+            const groupState =  decode(clientStateDecoder, followerGroupState!.groupState)!
             const [, pm, pmp] = await retrieveAndDecryptFollowerPostManifest(rs, groupState, impl, followerManifest, masterKey)
             return [await getPage(pmp, pm, pageNumber, rs), pm, groupState]
         } else {
@@ -38,7 +37,7 @@ export async function getGroupStateForUser(manifest: Manifest,
         if (followerManifest) {
             const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
             const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-            return {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+            return decode(clientStateDecoder, followerGroupState!.groupState)
         } else {
             return undefined
         }
@@ -59,7 +58,7 @@ export async function getPostManifestForUser(manifest: Manifest,
         if (followerManifest) {
             const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
             const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-            const groupState =  {...decodeGroupState(followerGroupState!.groupState, 0)![0], clientConfig }
+            const groupState =  decode(clientStateDecoder, followerGroupState!.groupState)
 
             const [, pm] = await retrieveAndDecryptFollowerPostManifest(rs, groupState!, impl, followerManifest, masterKey)
             return pm

@@ -1,4 +1,4 @@
-import { ClientState } from "ts-mls";
+import { ClientState, defaultCredentialTypes, nodeTypes } from "ts-mls";
 
 import { getUserIdFromCredential } from "./init";
 
@@ -6,7 +6,7 @@ import { getUserIdFromCredential } from "./init";
 export function recipientsFromMlsState(exclude: string[], clientState: ClientState): string[] {
   const recipients = []
   for (const x of clientState.ratchetTree) {
-    if (x?.nodeType === 'leaf' && x.leaf.credential.credentialType === 'basic') {
+    if (x?.nodeType === nodeTypes.leaf && x.leaf.credential.credentialType === defaultCredentialTypes.basic) {
       const userId = getUserIdFromCredential(x.leaf.credential)
       if (!exclude.includes(userId)) {
         recipients.push(userId)

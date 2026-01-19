@@ -1,4 +1,4 @@
-import { CiphersuiteImpl, createApplicationMessage, ClientState } from "ts-mls"
+import { CiphersuiteImpl, createApplicationMessage, ClientState, unsafeTestingAuthenticationService } from "ts-mls"
 import { PostManifestPage, DerivedMetrics, Manifest, PostManifest, PostMeta, StorageIdentifier, addDerivedMetrics, IndexCollection, IndexManifest } from "./manifest"
 import { encode, decode } from "cbor-x"
 import { MessageClient } from "./http/messageClient"
@@ -21,6 +21,7 @@ export async function createPost(
   thumbnail: Uint8Array,
   media: Uint8Array[],
   date: number,
+  description: string,
   postType: string | undefined,
   gear: string | undefined,
   _userId: string,
@@ -46,6 +47,7 @@ export async function createPost(
   const postMeta: PostMeta = {
     title,
     date,
+    description,
     metrics,
     totalLikes: 0,
     sampleLikes: [],
@@ -64,7 +66,7 @@ export async function createPost(
   // create MLS message of the post to group
   const msg: Message = { kind: "PostMessage", content: postMeta }
 
-  const createMessageResult = await createApplicationMessage(mlsGroup, encode(msg), impl)
+  const createMessageResult = await createApplicationMessage( { state: mlsGroup, message: encode(msg), context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService }})
 
   // messageClient.sendMessage({
   //   payload: encodeMlsMessage({

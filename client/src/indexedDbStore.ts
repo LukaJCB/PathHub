@@ -2,8 +2,7 @@ import { openDB, DBSchema } from "idb"
 import { bytesToBase64, KeyPackage, PrivateKeyPackage } from "ts-mls"
 import { PostManifestPage } from "./manifest"
 import { LocalStore } from "./localStore"
-import { fromJsonString, toJsonString } from "ts-mls/codec/json.js"
-import { clientConfig } from "./mlsConfig"
+
 
 interface Schema extends DBSchema {
   followRequests: {
@@ -58,12 +57,12 @@ export async function makeStore(userid: string): Promise<LocalStore> {
       await db.put("manifests", { manifest, user: userId }, manifestId)
     },
     async storeGroupState(state) {
-      await db.put("groupStates", toJsonString(state), bytesToBase64(state.groupContext.groupId))
+      await db.put("groupStates", "", bytesToBase64(state.groupContext.groupId))
     },
     async getGroupState(groupId) {
       const state =  await db.get("groupStates", groupId)
       
-      if (state) { return fromJsonString(state, clientConfig) }
+      if (state) { return undefined }
     },
     async getContent(storageId) {
       return await db.get("content", storageId)

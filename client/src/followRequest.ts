@@ -4,19 +4,22 @@ import {
   CiphersuiteImpl,
   ClientState,
   createCommit,
-  encodeMlsMessage,
   generateKeyPackageWithKey,
   KeyPackage,
   Proposal,
-  emptyPskIndex,
   Credential,
-  defaultCapabilities,
-  defaultLifetime,
-  Extension,
-  ExtensionType,
   joinGroupWithExtensions,
+  MlsMessage,
+  decode,
+  unsafeTestingAuthenticationService,
+  defaultProposalTypes,
+  encode,
+  nodeTypes,
+  defaultCredentialTypes,
+  CustomExtension,
+  makeCustomExtension,
+  mlsMessageEncoder,
 } from "ts-mls"
-import { decodeKeyPackage, encodeKeyPackage } from "ts-mls/keyPackage.js"
 import { Welcome } from "ts-mls/welcome.js"
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions"
 import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
@@ -26,7 +29,8 @@ import { encodeFollowerManifest, encodeFollowRequests, encodeClientState, encode
 import { derivePostSecret, encryptAndStoreWithPostSecret } from "./createPost"
 import { decodeFollowerManifest, decodePrivateKeyPackage } from "./codec/decode"
 import { SignatureKeyPair } from "./init"
-import { MLSMessage } from "ts-mls/message.js"
+import { keyPackageDecoder, keyPackageEncoder } from "ts-mls/keyPackage.js"
+import { isDefaultCredential } from "ts-mls/credential.js"
 
 export interface FollowRequests {
   outgoing: {followeeId: string, keyPackage: Uint8Array, privateKeyPackage: Uint8Array}[]
@@ -36,8 +40,8 @@ export interface FollowRequests {
 export function getAllFollowers(mlsGroup: ClientState): Uint8Array[] {
   const result: Uint8Array[] = []
   for (const [n, node] of mlsGroup.ratchetTree.entries()) {
-    if (node?.nodeType === 'leaf' && nodeToLeafIndex(toNodeIndex(n)) !== toLeafIndex(mlsGroup.privatePath.leafIndex)) {
-      if (node.leaf.credential.credentialType !== 'basic') throw new Error("No good")
+    if (node?.nodeType === nodeTypes.leaf && nodeToLeafIndex(toNodeIndex(n)) !== toLeafIndex(mlsGroup.privatePath.leafIndex)) {
+      if (!isDefaultCredential(node.leaf.credential) || node.leaf.credential.credentialType !== defaultCredentialTypes.basic) throw new Error("No good")
       result.push(node.leaf.credential.identity)
     }
   }
@@ -47,8 +51,8 @@ export function getAllFollowers(mlsGroup: ClientState): Uint8Array[] {
 export function getAllFollowersForNonOwner(mlsGroup: ClientState, userId: string): Uint8Array[] {
   const result: Uint8Array[] = []
   for (const node of mlsGroup.ratchetTree) {
-    if (node?.nodeType === 'leaf') {
-      if (node.leaf.credential.credentialType !== 'basic') throw new Error("No good")
+    if (node?.nodeType === nodeTypes.leaf) {
+      if (!isDefaultCredential(node.leaf.credential) || node.leaf.credential.credentialType !== defaultCredentialTypes.basic) throw new Error("No good")
       const decoded = new TextDecoder().decode(node.leaf.credential.identity)
       if (decoded !== userId) result.push(node.leaf.credential.identity)
     }
@@ -56,7 +60,7 @@ export function getAllFollowersForNonOwner(mlsGroup: ClientState, userId: string
   return result
 }
 
-export const followerManifestExtensionType: ExtensionType = 0x0AAA
+export const followerManifestExtensionType = 0x0AAA
 
 export function getAllFollowees(manifest: Manifest): string[] {
   return [...manifest.followerManifests.keys()]
@@ -73,16 +77,13 @@ export async function requestFollow(
   remoteStore: RemoteStore,
   impl: CiphersuiteImpl,
 ): Promise<FollowRequests> {
-  const { publicPackage, privatePackage } = await generateKeyPackageWithKey(
+  const { publicPackage, privatePackage } = await generateKeyPackageWithKey({
     credential,
-    defaultCapabilities(),
-    defaultLifetime,
-    [],
     signatureKeyPair,
-    impl,
-  )
+    cipherSuite: impl,
+  })
 
-  const encodedPublicPackage = encodeKeyPackage(publicPackage) //todo should this be encoded as mlsMessage?
+  const encodedPublicPackage = encode(keyPackageEncoder, publicPackage) //todo should this be encoded as mlsMessage?
 
   const msg: MessagePublic = { kind: "FollowRequest", keyPackage: encodedPublicPackage } 
 
@@ -141,7 +142,7 @@ export async function allowFollow(
   impl: CiphersuiteImpl,
 ): Promise<[FollowRequests, ClientState, Manifest, PostManifest]> {
   const addProposal: Proposal = {
-    proposalType: "add",
+    proposalType: defaultProposalTypes.add,
     add: { keyPackage },
   }
 
@@ -150,14 +151,13 @@ export async function allowFollow(
     postManifest: manifest.postManifest,
     currentPage: postManifest.currentPage
   }
-  const extension: Extension = {
-    extensionData: encodeFollowerManifest(followerManifest),
-    extensionType: followerManifestExtensionType
-  }
+  const extension: CustomExtension = makeCustomExtension(
+    followerManifestExtensionType,
+    encodeFollowerManifest(followerManifest),
+  )
 
   const commitResult = await createCommit(
-    { state: clientState, cipherSuite: impl },
-    { extraProposals: [addProposal], ratchetTreeExtension: true, groupInfoExtensions: [extension] },
+    { state: clientState, context: {cipherSuite: impl, authService: unsafeTestingAuthenticationService} , extraProposals: [addProposal], groupInfoExtensions: [extension], ratchetTreeExtension: true},
   )
 
 
@@ -186,11 +186,7 @@ export async function allowFollow(
 
   const recipients = recipientsFromMlsState([followerId, followeeId], clientState)
 
-  const mlsWelcome: MLSMessage = {
-    wireformat: "mls_welcome",
-    welcome: commitResult.welcome!,
-    version: "mls10"
-  }
+  const mlsWelcome: MlsMessage = commitResult.welcome!
 
   const followerGroupState: FollowerGroupState = {
     groupState: encodeClientState(newGroupState),
@@ -203,8 +199,8 @@ export async function allowFollow(
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), groupStateStorageId),
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),
-    messageClient.sendMessage({ payload: encodeMessagePublic({ mlsMessage: encodeMlsMessage(mlsWelcome), kind: "GroupMessage"}), recipients: [followerId] }),
-    recipients.length > 0 ? messageClient.sendMessage({ payload:encodeMessagePublic({ mlsMessage: encodeMlsMessage(commitResult.commit), kind: "GroupMessage"}), recipients: recipients }) : Promise.resolve(),
+    messageClient.sendMessage({ payload: encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, mlsWelcome), kind: "GroupMessage"}), recipients: [followerId] }),
+    recipients.length > 0 ? messageClient.sendMessage({ payload:encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, commitResult.commit), kind: "GroupMessage"}), recipients: recipients }) : Promise.resolve(),
     //localStore.storeGroupState(commitResult.newState),
   ])
   
@@ -224,10 +220,10 @@ export async function processAllowFollow(
 
   const {keyPackage, privateKeyPackage } = followRequests.outgoing.find(fr => fr.followeeId === followeeId)!
 
-  const kp = decodeKeyPackage(keyPackage, 0)![0]
+  const kp = decode(keyPackageDecoder, keyPackage)!
   const pkp = decodePrivateKeyPackage(privateKeyPackage)
 
-  const [group, extensions] = await joinGroupWithExtensions(welcome, kp, pkp, emptyPskIndex, impl)
+  const {state:group, groupInfoExtensions: extensions} = await joinGroupWithExtensions({ welcome, keyPackage: kp, privateKeys: pkp, context: {authService: unsafeTestingAuthenticationService, cipherSuite: impl}})
 
   const followerManifestExtension = extensions.find(ex => ex.extensionType === followerManifestExtensionType)
   if (!followerManifestExtension) throw new Error("Could not find follower manifest extension")

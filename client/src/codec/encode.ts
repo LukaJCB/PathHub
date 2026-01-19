@@ -1,7 +1,7 @@
 import { encode } from "cbor-x";
 import { PostManifestPage, Manifest, PostManifest, FollowerManifest, FollowerGroupState, InteractionLike, InteractionComment } from "../manifest";
 import { CommentTbs, LikeTbs } from "../postInteraction";
-import { ClientState, encodeGroupState, PrivateKeyPackage } from "ts-mls";
+import { ClientState, clientStateEncoder, PrivateKeyPackage, encode as encodeMls } from "ts-mls";
 
 import { FollowRequests } from "../followRequest";
 import { Message, MessagePublic } from "../message";
@@ -41,7 +41,7 @@ export function encodeRoute(r: [number, number, number][]): Uint8Array {
 }
 
 export function encodeClientState(gs: ClientState): Uint8Array {
-    return encodeGroupState(gs)
+    return encodeMls(clientStateEncoder, gs)
 }
 
 export function encodeFollowerGroupState(fgs: FollowerGroupState): Uint8Array {

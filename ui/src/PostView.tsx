@@ -236,6 +236,11 @@ export const PostView = () => {
                                     <span className="font-medium text-gray-800">{post.gear}</span>
                                 </div>
                             )}
+                            {post.description && post.description.trim().length > 0 && (
+                                <p className="text-gray-700 mb-6 leading-relaxed whitespace-pre-line">
+                                    {post.description}
+                                </p>
+                            )}
                             <Link 
                                 to={`/user/${profileUserId}`}
                                 aria-label="Open profile"

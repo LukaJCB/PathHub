@@ -42,6 +42,8 @@ function App() {
       const posts = await getTimeline(user.manifest, user.id, user.currentPage, user.masterKey, rs, await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))      
       setPosts(posts)
 
+      console.log(posts)
+
       const authors: Set<string> = new Set()
       posts.forEach(p => authors.add(p.userId))
 
