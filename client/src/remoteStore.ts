@@ -13,6 +13,8 @@ export interface RemoteStore {
   // storePostComments(postId: Uint8Array, comment: Comment[]): Promise<void>
   // storePostLikes(postId: Uint8Array, like: Like[]): Promise<void>
   storeContent(id: Uint8Array, content: Uint8Array, nonce: Uint8Array): Promise<string>
+
+  batchStoreContent(payloads: Array<{ id: Uint8Array; content: Uint8Array; nonce: Uint8Array }>): Promise<void>
   // storeFollowRequest(followeeId: string, publicPackage: KeyPackage, privatePackage: PrivateKeyPackage): Promise<void>
 
   // getGroupState(groupId: Uint8Array): Promise<ClientState>
@@ -34,6 +36,15 @@ export function createRemoteStore(client: StorageClient): RemoteStore {
       const storageId = uint8ToBase64Url(id)  //todo use hash?
       await client.putContent(storageId, content, nonce)
       return storageId
+    },
+    async batchStoreContent(payloads) {
+      await client.batchPut(
+        payloads.map(p => ({
+          id: uint8ToBase64Url(p.id),
+          body: p.content,
+          nonce: p.nonce,
+        })),
+      )
     },
     async getContent(storageId) {
       const res = await client.batchGetContent([base64urlToUint8(storageId)])

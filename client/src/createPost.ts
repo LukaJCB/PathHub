@@ -37,12 +37,19 @@ export async function createPost(
   masterKey: Uint8Array
 ): Promise<[ClientState, PostManifestPage, PostManifest, Manifest]> {
 
-  //todo parallelize this with the updating of the manifest
-  const storageIdentifier = await encryptAndStore(mlsGroup, impl, remoteStore, content)
 
-  const mediaIds = await Promise.all(media.map(m => encryptAndStore(mlsGroup, impl, remoteStore, m)))
+  const currentPostSecret = await derivePostSecret(mlsGroup, impl)
+  const payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }> = []
 
-  const thumbnailId = await encryptAndStore(mlsGroup, impl, remoteStore, thumbnail)
+  const mainAlloc = allocateStorageIdentifier(currentPostSecret)
+  const thumbnailAlloc = allocateStorageIdentifier(currentPostSecret)
+  const mediaAllocs = media.map(() => allocateStorageIdentifier(currentPostSecret))
+
+  payloads.push(
+    { postSecret: currentPostSecret, storageId: mainAlloc.objectId, content },
+    { postSecret: currentPostSecret, storageId: thumbnailAlloc.objectId, content: thumbnail },
+    ...mediaAllocs.map((a, idx) => ({ postSecret: currentPostSecret, storageId: a.objectId, content: media[idx]! })),
+  )
 
   const postMeta: PostMeta = {
     title,
@@ -53,11 +60,11 @@ export async function createPost(
     sampleLikes: [],
     totalComments: 0,
     sampleComments: [],
-    main: storageIdentifier,
+    main: mainAlloc.storageIdentifier,
     comments: undefined,
     likes: undefined,
-    media: mediaIds,
-    thumbnail: thumbnailId,
+    media: mediaAllocs.map(a => a.storageIdentifier),
+    thumbnail: thumbnailAlloc.storageIdentifier,
     type: postType,
     gear
   }
@@ -68,32 +75,187 @@ export async function createPost(
 
   const createMessageResult = await createApplicationMessage( { state: mlsGroup, message: encode(msg), context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService }})
 
-  // messageClient.sendMessage({
-  //   payload: encodeMlsMessage({
-  //     version: "mls10",
-  //     wireformat: "mls_private_message",
-  //     privateMessage: createMessageResult.privateMessage,
-  //   }),
-  //   recipients: recipientsFromMlsState([userId], mlsGroup),
-  // }),
+  let newPage: PostManifestPage
+  let newPostManifest: PostManifest
+  let newManifest: Manifest
+  let indexPageIndexForPostLocator: number
 
   if (page.posts.length >= postLimit) {
-    //create new manifest and link old one
+    ;[newPage, newPostManifest, newManifest] = overflowManifestBatched(
+      page,
+      postManifest,
+      manifest,
+      manifestId,
+      masterKey,
+      postMeta,
+      currentPostSecret,
+      payloads,
+    )
 
-    const [newPage, newPostManifest, newManifest] = await overflowManifest(mlsGroup, impl, page, postManifest, manifest, manifestId, 
-      masterKey, postMeta, remoteStore)
-
-
-    return [createMessageResult.newState, newPage, newPostManifest, newManifest]
+    indexPageIndexForPostLocator = page.pageIndex
+  } else {
+    ;[newPage, newPostManifest, newManifest] = addToPageBatched(
+      page,
+      postManifest,
+      manifest,
+      manifestId,
+      masterKey,
+      postMeta,
+      currentPostSecret,
+      payloads,
+    )
+    indexPageIndexForPostLocator = page.pageIndex
   }
 
-  const [newPage, newPostManifest, newManifest] = await addToPage(mlsGroup, impl, page, postManifest, manifest, manifestId, masterKey, postMeta, remoteStore)
+  const [indexes, indexManifest] = await loadIndexes(newManifest, masterKey, remoteStore)
+  const newCollection = addPostToIndexes(indexes, postMeta, indexPageIndexForPostLocator)
+  collectIndexWrites(newCollection, masterKey, indexManifest, newManifest.indexes, payloads)
 
-
+  await batchEncryptAndStoreWithSecrets(remoteStore, payloads)
 
   await store.storeGroupState(createMessageResult.newState)
 
   return [createMessageResult.newState, newPage, newPostManifest, newManifest]
+}
+
+function allocateStorageIdentifier(postSecret: Uint8Array): { objectId: Uint8Array; storageIdentifier: StorageIdentifier } {
+  const objectId = crypto.getRandomValues(new Uint8Array(32))
+  return {
+    objectId,
+    storageIdentifier: [uint8ToBase64Url(objectId), postSecret],
+  }
+}
+
+function addToPageBatched(
+  page: PostManifestPage,
+  postManifest: PostManifest,
+  manifest: Manifest,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
+  postMeta: PostMeta,
+  currentPostSecret: Uint8Array,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): [PostManifestPage, PostManifest, Manifest] {
+  const newPage: PostManifestPage = {
+    posts: [postMeta, ...page.posts],
+    pageIndex: page.pageIndex,
+  }
+
+  const updatedTotals = {
+    totalPosts: postManifest.totals.totalPosts + 1,
+    totalDerivedMetrics: addDerivedMetrics(postManifest.totals.totalDerivedMetrics, postMeta.metrics),
+  }
+
+  const currentPageIdString = postManifest.currentPage[0]
+  const newCurrentPage: StorageIdentifier = [currentPageIdString, currentPostSecret]
+
+  const newPostManifest: PostManifest = {
+    totals: updatedTotals,
+    pages: postManifest.pages,
+    currentPage: newCurrentPage,
+  }
+
+  const postManifestIdString = manifest.postManifest[0]
+  const newManifest: Manifest = {
+    ...manifest,
+    postManifest: [postManifestIdString, currentPostSecret],
+  }
+
+  payloads.push(
+    {
+      postSecret: currentPostSecret,
+      storageId: base64urlToUint8(currentPageIdString),
+      content: encodePostManifestPage(newPage),
+    },
+    {
+      postSecret: currentPostSecret,
+      storageId: base64urlToUint8(postManifestIdString),
+      content: encodePostManifest(newPostManifest),
+    },
+    {
+      postSecret: masterKey,
+      storageId: manifestId,
+      content: encodeManifest(newManifest),
+    },
+  )
+
+  return [newPage, newPostManifest, newManifest]
+}
+
+function overflowManifestBatched(
+  page: PostManifestPage,
+  postManifest: PostManifest,
+  manifest: Manifest,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
+  postMeta: PostMeta,
+  currentPostSecret: Uint8Array,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): [PostManifestPage, PostManifest, Manifest] {
+  const newPage: PostManifestPage = {
+    posts: [postMeta],
+    pageIndex: page.pageIndex + 1,
+  }
+
+  const updatedTotals = {
+    totalPosts: postManifest.totals.totalPosts + 1,
+    totalDerivedMetrics: addDerivedMetrics(postManifest.totals.totalDerivedMetrics, postMeta.metrics),
+  }
+
+  const newPageAlloc = allocateStorageIdentifier(currentPostSecret)
+
+  const newPostManifest: PostManifest = {
+    totals: updatedTotals,
+    pages: [...postManifest.pages, { usedUntil: Date.now(), page: postManifest.currentPage }],
+    currentPage: newPageAlloc.storageIdentifier,
+  }
+
+  const postManifestIdString = manifest.postManifest[0]
+  const newManifest: Manifest = {
+    ...manifest,
+    postManifest: [postManifestIdString, currentPostSecret],
+  }
+
+  payloads.push(
+    {
+      postSecret: currentPostSecret,
+      storageId: newPageAlloc.objectId,
+      content: encodePostManifestPage(newPage),
+    },
+    {
+      postSecret: currentPostSecret,
+      storageId: base64urlToUint8(postManifestIdString),
+      content: encodePostManifest(newPostManifest),
+    },
+    {
+      postSecret: masterKey,
+      storageId: manifestId,
+      content: encodeManifest(newManifest),
+    },
+  )
+
+  return [newPage, newPostManifest, newManifest]
+}
+
+function collectIndexWrites(
+  indexes: IndexCollection,
+  masterKey: Uint8Array,
+  indexManifest: IndexManifest,
+  indexManifestId: Uint8Array,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): void {
+  const newIndexManifest: IndexManifest = { ...indexManifest, typeMap: indexes.typeMap, gearMap: indexes.gearMap }
+
+  payloads.push(
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDistance), content: encode(indexes.byDistance) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDuration), content: encode(indexes.byDuration) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byElevation), content: encode(indexes.byElevation) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byType), content: encode(indexes.byType) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byGear), content: encode(indexes.byGear) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.wordIndex), content: encode(indexes.wordIndex) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.postLocator), content: encode(indexes.postLocator) },
+    { postSecret: masterKey, storageId: indexManifestId, content: encode(newIndexManifest) },
+  )
 }
 
 async function loadIndexes(
@@ -141,89 +303,6 @@ async function loadIndexes(
   return [collection, indexManifest]
 }
 
-export async function storeIndexes(
-  indexes: IndexCollection,
-  remoteStore: RemoteStore,
-  masterKey: Uint8Array,
-  indexManifest: IndexManifest,
-  indexManifestId: Uint8Array
-): Promise<void> {
-
-  const newIndexManifest: IndexManifest = {...indexManifest, typeMap: indexes.typeMap, gearMap: indexes.gearMap}
-
-  await Promise.all([
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byDistance), base64urlToUint8(indexManifest.byDistance)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byDuration), base64urlToUint8(indexManifest.byDuration)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byElevation), base64urlToUint8(indexManifest.byElevation)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byType), base64urlToUint8(indexManifest.byType)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.byGear), base64urlToUint8(indexManifest.byGear)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.wordIndex), base64urlToUint8(indexManifest.wordIndex)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(indexes.postLocator), base64urlToUint8(indexManifest.postLocator)),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encode(newIndexManifest), indexManifestId)
-  ])
-
-
-
-}
-
-
-export async function addToPage(
-  mlsGroup: ClientState,
-  impl: CiphersuiteImpl,
-  page: PostManifestPage, 
-  postManifest: PostManifest,
-  manifest: Manifest,
-  manifestId: Uint8Array,
-  masterKey: Uint8Array,
-  postMeta: PostMeta,
-  remoteStore: RemoteStore
-): Promise<[PostManifestPage, PostManifest, Manifest]> {
-
-  const newPage = {
-    posts: [postMeta, ...page.posts],
-    pageIndex: page.pageIndex
-  }
-
-
-  const updatedTotals = {
-    totalPosts: postManifest.totals.totalPosts + 1,
-    totalDerivedMetrics: addDerivedMetrics(postManifest.totals.totalDerivedMetrics, postMeta.metrics),
-  }
-
-  let newPageId = postManifest.currentPage
-
-  const currentPostSecret = await derivePostSecret(mlsGroup, impl)
-  if (compareUint8Arrays(currentPostSecret, postManifest.currentPage[1])) {
-    await encryptAndStoreWithPostSecret(currentPostSecret, remoteStore, encodePostManifestPage(newPage), base64urlToUint8(postManifest.currentPage[0]))
-  } else {
-    newPageId = await encryptAndStore(mlsGroup, impl, remoteStore, encodePostManifestPage(newPage), base64urlToUint8(postManifest.currentPage[0]))
-  }
-
-  const newPostManifest = {
-    totals: updatedTotals,
-    pages: postManifest.pages,
-    currentPage: newPageId
-  }
-
-  
-  const newManifest = await updatePostManifest(remoteStore, newPostManifest, mlsGroup, impl, manifest, masterKey, manifestId)
-
-  const [indexes, indexManifest] = await loadIndexes(newManifest ?? manifest, masterKey, remoteStore)
-  
-  
-  const newCollection = addPostToIndexes(indexes, postMeta, page.pageIndex)
-  await storeIndexes(
-    newCollection,
-    remoteStore,
-    masterKey,
-    indexManifest,
-    manifest.indexes
-  )
-  
-  return [newPage, newPostManifest, newManifest ?? manifest]
-  
-}
-
 
 export async function replaceInPage(
   mlsGroup: ClientState,
@@ -257,17 +336,36 @@ export async function replaceInPage(
 
     return [newPage, postManifest, manifest]
   } else {
-    newPageId = await encryptAndStore(mlsGroup, impl, remoteStore, encodePostManifestPage(newPage), base64urlToUint8(pageId[0]))
+    newPageId = [pageId[0], currentPostSecret]
 
-    // update postManifest to replace the existing page with the new page
     const newPostManifest = replacePage(pageId, newPageId, postManifest)
 
-    // see if the postManifest is still encrypted by the most recent secret, if it is do nothing,
-    //  otherwise re-encrypt and update the manifest
-    const newManifest = await updatePostManifest(remoteStore, newPostManifest, mlsGroup, impl, manifest, masterKey, manifestId)
-  
-  
-    return [newPage, newPostManifest, newManifest ?? manifest]
+    const payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }> = [
+      {
+        postSecret: currentPostSecret,
+        storageId: base64urlToUint8(pageId[0]),
+        content: encodePostManifestPage(newPage),
+      },
+      {
+        postSecret: currentPostSecret,
+        storageId: base64urlToUint8(manifest.postManifest[0]),
+        content: encodePostManifest(newPostManifest),
+      },
+    ]
+
+    let finalManifest: Manifest = manifest
+    if (!compareUint8Arrays(currentPostSecret, manifest.postManifest[1])) {
+      finalManifest = { ...manifest, postManifest: [manifest.postManifest[0], currentPostSecret] }
+      payloads.push({
+        postSecret: masterKey,
+        storageId: manifestId,
+        content: encodeManifest(finalManifest),
+      })
+    }
+
+    await batchEncryptAndStoreWithSecrets(remoteStore, payloads)
+
+    return [newPage, newPostManifest, finalManifest]
   }
 
   
@@ -293,89 +391,6 @@ function replacePage(oldPageId: StorageIdentifier, newPageId: StorageIdentifier,
 
 //PostManifestPage -> postManifestIndex -> [PostManifestPage] 
 
-export async function overflowManifest(
-  mlsGroup: ClientState,
-  impl: CiphersuiteImpl,
-  page: PostManifestPage, 
-  postManifest: PostManifest,
-  manifest: Manifest,
-  manifestId: Uint8Array,
-  masterKey: Uint8Array,
-  postMeta: PostMeta,
-  remoteStore: RemoteStore
-): Promise<[PostManifestPage, PostManifest, Manifest]> {
-
-  //if current secret == storageId secret {
-  // update in place.
-  //} else {
-  // delete and replace PostManifestPage with new secret
-  // as part of this, also fetch the post manifest and delete and replace post manifest with new secret
-  //}
-
-  const newPage = {
-    posts: [postMeta],
-    pageIndex: page.pageIndex + 1,
-  }
-
-  const updatedTotals = {
-    totalPosts: postManifest.totals.totalPosts + 1,
-    totalDerivedMetrics: addDerivedMetrics(postManifest.totals.totalDerivedMetrics, postMeta.metrics),
-  }
-
-  
-  const newPageId = await encryptAndStore(mlsGroup, impl, remoteStore, encodePostManifestPage(newPage))
-
-  const newPostManifest = {
-    totals: updatedTotals,
-    pages: [...postManifest.pages, {usedUntil: Date.now(), page: postManifest.currentPage}],
-    currentPage: newPageId
-  }
-  
-  const newManifest = await updatePostManifest(remoteStore, newPostManifest, mlsGroup, impl, manifest, masterKey, manifestId)
-
-const [indexes, indexManifest] = await loadIndexes(newManifest ?? manifest, masterKey, remoteStore)
-  
-
-
-  
-  const newCollection = addPostToIndexes(indexes, postMeta, page.pageIndex)
-  await storeIndexes(
-    newCollection,
-    remoteStore,
-    masterKey,
-    indexManifest,
-    manifest.indexes
-  )
-  
-  return [newPage, newPostManifest, newManifest ?? manifest]
-}
-
-
-async function updatePostManifest(
-  remoteStore: RemoteStore, 
-  newPostManifest: PostManifest, 
-  mlsGroup: ClientState, 
-  impl: CiphersuiteImpl, 
-  manifest: Manifest, 
-  masterKey: Uint8Array, 
-  manifestId: Uint8Array): Promise<undefined | Manifest> {
-  const currentPostSecret = await derivePostSecret(mlsGroup, impl)
-  if (compareUint8Arrays(currentPostSecret, manifest.postManifest[1])) {
-    await encryptAndStoreWithPostSecret(currentPostSecret, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0]))
-
-    return manifest
-  } else {
-    const newPostManifestId = await encryptAndStore(mlsGroup, impl, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0]))
-
-    const newManifest: Manifest = { ...manifest, postManifest: newPostManifestId }
-
-    await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId)
-
-    return newManifest
-  }
-
-}
-
 
 export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remoteStore: RemoteStore, content: Uint8Array, storageId: Uint8Array): Promise<void> {
   const key = await importAesKey(postSecret)
@@ -392,6 +407,35 @@ export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remo
   // store encrypted content remotely
   await remoteStore.storeContent(storageId, new Uint8Array(encryptedContent), nonce)
  
+}
+
+export async function batchEncryptAndStoreWithSecrets(
+  remoteStore: RemoteStore,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): Promise<void> {
+  const keyCache = new Map<string, CryptoKey>()
+
+  const encryptedPayloads = await Promise.all(
+    payloads.map(async ({ postSecret, storageId, content }) => {
+      const cacheKey = uint8ToBase64Url(postSecret)
+      let key = keyCache.get(cacheKey)
+      if (!key) {
+        key = await importAesKey(postSecret)
+        keyCache.set(cacheKey, key)
+      }
+
+      const nonce = crypto.getRandomValues(new Uint8Array(12))
+      const encryptedContent = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: nonce },
+        key,
+        toBufferSource(content),
+      )
+
+      return { id: storageId, content: new Uint8Array(encryptedContent), nonce }
+    }),
+  )
+
+  await remoteStore.batchStoreContent(encryptedPayloads)
 }
 
 export async function encryptAndStore(mlsGroup: ClientState, impl: CiphersuiteImpl, remoteStore: RemoteStore, content: Uint8Array, objectId?: Uint8Array): Promise<[string, Uint8Array]> {

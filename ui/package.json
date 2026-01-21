@@ -33,7 +33,7 @@
     "react-leaflet": "^5.0.0",
     "react-router": "^7.9.6",
     "tailwindcss": "^4.1.18",
-    "ts-mls": "2.0.0-rc.2"
+    "ts-mls": "2.0.0-rc.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

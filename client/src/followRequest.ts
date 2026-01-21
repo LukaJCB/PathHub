@@ -16,9 +16,9 @@ import {
   encode,
   nodeTypes,
   defaultCredentialTypes,
-  CustomExtension,
   makeCustomExtension,
   mlsMessageEncoder,
+  GroupInfoExtension,
 } from "ts-mls"
 import { Welcome } from "ts-mls/welcome.js"
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions"
@@ -26,7 +26,7 @@ import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
 import { FollowerGroupState, FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
 import { base64urlToUint8, RemoteStore, uint8ToBase64Url } from "./remoteStore"
 import { encodeFollowerManifest, encodeFollowRequests, encodeClientState, encodeManifest, encodeMessagePublic, encodePostManifest, encodePostManifestPage, encodePrivateKeyPackage, encodeFollowerGroupState } from "./codec/encode"
-import { derivePostSecret, encryptAndStoreWithPostSecret } from "./createPost"
+import { batchEncryptAndStoreWithSecrets, derivePostSecret, encryptAndStoreWithPostSecret } from "./createPost"
 import { decodeFollowerManifest, decodePrivateKeyPackage } from "./codec/decode"
 import { SignatureKeyPair } from "./init"
 import { keyPackageDecoder, keyPackageEncoder } from "ts-mls/keyPackage.js"
@@ -151,10 +151,16 @@ export async function allowFollow(
     postManifest: manifest.postManifest,
     currentPage: postManifest.currentPage
   }
-  const extension: CustomExtension = makeCustomExtension(
-    followerManifestExtensionType,
-    encodeFollowerManifest(followerManifest),
-  )
+  const extension: GroupInfoExtension = makeCustomExtension({
+    extensionType: followerManifestExtensionType,
+    extensionData: encodeFollowerManifest(followerManifest),
+  })
+
+  // const extension: GroupInfoExtension = makeCustomExtension(
+  //   followerManifestExtensionType,
+  //   encodeFollowerManifest(followerManifest),
+  // )
+
 
   const commitResult = await createCommit(
     { state: clientState, context: {cipherSuite: impl, authService: unsafeTestingAuthenticationService} , extraProposals: [addProposal], groupInfoExtensions: [extension], ratchetTreeExtension: true},
@@ -193,12 +199,14 @@ export async function allowFollow(
     cachedInteractions: new Map()
   }
 
-  const [pmid, pmpid] = await Promise.all([
-    encryptAndStoreWithPostSecret(newSecret, remoteStore, encodePostManifest(newPostManifest), base64urlToUint8(manifest.postManifest[0])),
-    encryptAndStoreWithPostSecret(newSecret, remoteStore, encodePostManifestPage(page), base64urlToUint8(postManifest.currentPage[0])),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), groupStateStorageId),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),
+  await Promise.all([
+    batchEncryptAndStoreWithSecrets(remoteStore, [
+      { postSecret: newSecret, storageId: base64urlToUint8(manifest.postManifest[0]), content: encodePostManifest(newPostManifest) },
+      { postSecret: newSecret, storageId: base64urlToUint8(postManifest.currentPage[0]), content: encodePostManifestPage(page) },
+      { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest) },
+      { postSecret: masterKey, storageId: groupStateStorageId, content: encodeFollowerGroupState(followerGroupState) },
+      { postSecret: masterKey, storageId: manifest.followRequests, content: encodeFollowRequests(newFollowRequests) },
+    ]),
     messageClient.sendMessage({ payload: encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, mlsWelcome), kind: "GroupMessage"}), recipients: [followerId] }),
     recipients.length > 0 ? messageClient.sendMessage({ payload:encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, commitResult.commit), kind: "GroupMessage"}), recipients: recipients }) : Promise.resolve(),
     //localStore.storeGroupState(commitResult.newState),
@@ -261,11 +269,11 @@ export async function processAllowFollow(
     followerManifests: newFollowerManifests,
   }
 
-  await Promise.all([
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowerGroupState(followerGroupState), newGroupStateStorageId),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), manifest.followRequests),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, followerManifestExtension.extensionData, followerManifestStorageId),
-    encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeManifest(newManifest), manifestId)
+  await batchEncryptAndStoreWithSecrets(remoteStore, [
+    { postSecret: masterKey, storageId: newGroupStateStorageId, content: encodeFollowerGroupState(followerGroupState) },
+    { postSecret: masterKey, storageId: manifest.followRequests, content: encodeFollowRequests(newFollowRequests) },
+    { postSecret: masterKey, storageId: followerManifestStorageId, content: followerManifestExtension.extensionData },
+    { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest) },
   ])
 
   return [newFollowRequests, newManifest, followerManifest, group]

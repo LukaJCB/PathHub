@@ -109,10 +109,10 @@ All blobs are referenced by a 256 bit hash of the blob, this allows for idempote
 The service has transactional semantics for any amount of data that is passed to it within a single call.
 This is achieved by first storing all the blobs in the object storage and only once everything is stored, it will update the Postgres table to point the pointers to the new values.
 
-Idea?
-Add timestamp to storage blobs, then whenever a user fetches a blob, also return the last modified timestamp.
-Then when a user wants to update the blob include the timestamp of when the user fetched it.
-If it has been modified between when it was fetched, reject the write.
+Use optimistic locking to ensure no one has written to the storage id between when it was fetched and written to.
+Add a version to storage blobs, then whenever a user fetches a blob, also return the current version.
+Then when a user wants to update the blob include the version of when the user fetched it.
+If the version has been modified between when it was fetched, reject the write.
 
 ### Message Broker Service
 

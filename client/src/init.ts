@@ -8,24 +8,22 @@ import {
   defaultCredentialTypes,
   defaultCryptoProvider,
   defaultExtensionTypes,
-  encode,
   generateKeyPackage,
   getCiphersuiteFromName,
   getCiphersuiteImpl,
-  nodeTypes,
   RequiredCapabilities,
-  requiredCapabilitiesEncoder,
   unsafeTestingAuthenticationService,
 } from "ts-mls"
+import { encode as cborEncode } from "cbor-x"
 import { clientConfig } from "./mlsConfig"
 import { deriveGroupIdFromUserId } from "./mlsInteractions";
 import { PostManifestPage, Manifest, PostManifest, FollowerGroupState, IndexManifest, IndexCollection } from "./manifest";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptPostManifestPage, retrieveAndDecryptGroupState, retrieveAndDecryptManifest, uint8ToBase64Url, retrieveAndDecryptPostManifest } from "./remoteStore";
-import { encryptAndStore, encryptAndStoreWithPostSecret, storeIndexes } from "./createPost";
+import { batchEncryptAndStoreWithSecrets, derivePostSecret } from "./createPost";
 import { encodePostManifestPage, encodeFollowRequests, encodeClientState, encodeManifest, encodePostManifest, encodeFollowerGroupState } from "./codec/encode";
-import { leafToNodeIndex, toLeafIndex } from "ts-mls/treemath.js";
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator";
 import { isDefaultCredential } from "ts-mls/credential.js";
+import { getOwnLeafNode } from "ts-mls/clientState.js";
 
 export interface SignatureKeyPair {
   signKey: Uint8Array
@@ -53,7 +51,7 @@ export async function initGroupState(userId: string): Promise<[ClientState, Sign
   const groupId = await deriveGroupIdFromUserId(userId)
 
   const group = await createGroup({ groupId,keyPackage: kp.publicPackage, privateKeyPackage: kp.privatePackage,extensions: [
-    { extensionType: defaultExtensionTypes.required_capabilities, extensionData: encode(requiredCapabilitiesEncoder, requiredCapabilities) }], 
+    { extensionType: defaultExtensionTypes.required_capabilities, extensionData: requiredCapabilities }], 
    context: {cipherSuite: impl, authService: unsafeTestingAuthenticationService, clientConfig}})
 
   const keyPair = {signKey: kp.privatePackage.signaturePrivateKey, publicKey: kp.publicPackage.leafNode.signaturePublicKey}
@@ -73,13 +71,12 @@ export function getUserIdFromCredential(cred: Credential): string {
   return new TextDecoder().decode(cred.identity)
 }
 
+
+
 export function getKeyPairFromGroupState(state: ClientState): SignatureKeyPair {
-  const idx = leafToNodeIndex(toLeafIndex(state.privatePath.leafIndex))
-  const leaf = state.ratchetTree[idx]
-  if (leaf?.nodeType !== nodeTypes.leaf) throw new Error("Expected leaf node")
   return {
     signKey: state.signaturePrivateKey,
-    publicKey: leaf.leaf.signaturePublicKey
+    publicKey: getOwnLeafNode(state).signaturePublicKey
   }
 }
 
@@ -105,6 +102,7 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
 
     const [groupState, keyPair] = await initGroupState(userId)
 
+
     const followerGroupState: FollowerGroupState = {
       groupState: encodeClientState(groupState),
       cachedInteractions: new Map()
@@ -120,15 +118,25 @@ export async function getOrCreateManifest(userId: string, manifestId: string, ma
 
     const avatar = new TextEncoder().encode(getRandomAvatar(5,"circle"))
 
-    
+    const [manifest, postManifest, payloads] = await initManifest(
+      groupState,
+      impl,
+      page,
+      gmStorageId,
+      frStorageId,
+      masterKey,
+      manifestId,
+    )
 
-    const [[manifest, postManifest]] = await Promise.all([
-      initManifest(groupState, impl, rs, page, gmStorageId, frStorageId, masterKey, manifestId),
+    payloads.push(
+      { postSecret: masterKey, storageId: gmStorageId, content: encodeFollowerGroupState(followerGroupState) },
+      { postSecret: masterKey, storageId: frStorageId, content: encodeFollowRequests({ incoming: [], outgoing: [] }) },
+    )
+
+    await Promise.all([
       rs.client.putAvatar(avatar, "image/svg+xml"),
-      encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowerGroupState(followerGroupState), gmStorageId),
-      encryptAndStoreWithPostSecret(masterKey, rs, encodeFollowRequests({incoming:[], outgoing:[]}), frStorageId)
+      batchEncryptAndStoreWithSecrets(rs, payloads),
     ])
-    
 
     return [manifest, postManifest, page, groupState, keyPair]
   }
@@ -139,9 +147,18 @@ export async function getGroupStateIdFromManifest(y: Manifest, userId: string): 
   return y.groupStates.get(uint8ToBase64Url(await deriveGroupIdFromUserId(userId)))!
 }
 
-async function initManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: RemoteStore, page: PostManifestPage, gmStorageId: Uint8Array, frStorageId: Uint8Array, masterKey: Uint8Array, manifestId: string): Promise<[Manifest, PostManifest]> {
-    const [pm, pmStorage] = await initPostManifest(groupState, impl, rs, page);
-    const indexesStorage = await initIndexManifest(rs, masterKey);
+async function initManifest(
+  groupState: ClientState,
+  impl: CiphersuiteImpl,
+  page: PostManifestPage,
+  gmStorageId: Uint8Array,
+  frStorageId: Uint8Array,
+  masterKey: Uint8Array,
+  manifestId: string,
+): Promise<[Manifest, PostManifest, { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }[]]> {
+    const payloads: { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }[] = []
+    const [pm, pmStorage] = await initPostManifest(groupState, impl, page, payloads)
+    const indexesStorage = await initIndexManifest(masterKey, payloads)
 
     const manifest: Manifest = {
       postManifest: pmStorage,
@@ -151,13 +168,16 @@ async function initManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: 
       followRequests: frStorageId
     };
 
-    await encryptAndStoreWithPostSecret(masterKey, rs, encodeManifest(manifest), base64urlToUint8(manifestId));
+    payloads.push({ postSecret: masterKey, storageId: base64urlToUint8(manifestId), content: encodeManifest(manifest) })
 
-    return [manifest, pm]
+    return [manifest, pm, payloads]
 }
 
 
-async function initIndexManifest(rs: RemoteStore, masterKey: Uint8Array): Promise<Uint8Array> {
+async function initIndexManifest(
+  masterKey: Uint8Array,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): Promise<Uint8Array> {
 
   const emptyIndexes: IndexCollection = {
     byDistance: [],
@@ -186,13 +206,34 @@ async function initIndexManifest(rs: RemoteStore, masterKey: Uint8Array): Promis
 
   const indexManifestId = crypto.getRandomValues(new Uint8Array(32))
 
-  await storeIndexes(emptyIndexes, rs, masterKey, indexManifest,indexManifestId)
+  const newIndexManifest: IndexManifest = { ...indexManifest, typeMap: emptyIndexes.typeMap, gearMap: emptyIndexes.gearMap }
+
+  payloads.push(
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDistance), content: cborEncode(emptyIndexes.byDistance) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDuration), content: cborEncode(emptyIndexes.byDuration) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byElevation), content: cborEncode(emptyIndexes.byElevation) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byType), content: cborEncode(emptyIndexes.byType) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byGear), content: cborEncode(emptyIndexes.byGear) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.wordIndex), content: cborEncode(emptyIndexes.wordIndex) },
+    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.postLocator), content: cborEncode(emptyIndexes.postLocator) },
+    { postSecret: masterKey, storageId: indexManifestId, content: cborEncode(newIndexManifest) },
+  )
 
   return indexManifestId
 }
 
-async function initPostManifest(groupState: ClientState, impl: CiphersuiteImpl, rs: RemoteStore, page: PostManifestPage): Promise<[PostManifest, [string, Uint8Array]]> {
-    const pageStorage = await encryptAndStore(groupState, impl, rs, encodePostManifestPage(page));
+async function initPostManifest(
+  groupState: ClientState,
+  impl: CiphersuiteImpl,
+  page: PostManifestPage,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+): Promise<[PostManifest, [string, Uint8Array]]> {
+    const postSecret = await derivePostSecret(groupState, impl)
+
+    const pageObjectId = crypto.getRandomValues(new Uint8Array(32))
+    const pageStorage: [string, Uint8Array] = [uint8ToBase64Url(pageObjectId), postSecret]
+
+    payloads.push({ postSecret, storageId: pageObjectId, content: encodePostManifestPage(page) })
 
     const postManifest: PostManifest = {
       pages: [],
@@ -207,7 +248,12 @@ async function initPostManifest(groupState: ClientState, impl: CiphersuiteImpl, 
       }
     };
 
-    return [postManifest, await encryptAndStore(groupState, impl, rs, encodePostManifest(postManifest))] as const;
+    const postManifestObjectId = crypto.getRandomValues(new Uint8Array(32))
+    const postManifestStorage: [string, Uint8Array] = [uint8ToBase64Url(postManifestObjectId), postSecret]
+
+    payloads.push({ postSecret, storageId: postManifestObjectId, content: encodePostManifest(postManifest) })
+
+    return [postManifest, postManifestStorage] as const;
 
 }
 

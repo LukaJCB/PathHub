@@ -3,7 +3,7 @@ import {  CiphersuiteImpl, ClientState, createApplicationMessage,encode, unsafeT
 import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost";
 import { base64urlToUint8, RemoteStore, retrieveAndDecryptContent, retrieveAndDecryptGroupState, uint8ToBase64Url } from "./remoteStore";
 import { toBufferSource } from "ts-mls/util/byteArray.js";
-import { encodeComments, encodeCommentTbs, encodeFollowerGroupState, encodeLike, encodeLikes, encodeLikeTbs, encodeMessage, encodeMessagePublic } from "./codec/encode";
+import { encodeComments, encodeCommentTbs, encodeFollowerGroupState, encodeLikes, encodeLikeTbs, encodeMessage, encodeMessagePublic } from "./codec/encode";
 import { decodeComments, decodeLikes } from "./codec/decode";
 import { Message, MessagePublic } from "./message";
 import { MessageClient } from "./http/messageClient";
@@ -132,7 +132,7 @@ export async function likePost(
 
   const like = await signLike(signingKey, likeTbs)
 
-  const content = encodeLike(like)
+  // const _content = encodeLike(like)
 
   //send like to mls group
 

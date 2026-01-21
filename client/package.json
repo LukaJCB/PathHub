@@ -30,7 +30,7 @@
     "idb": "^8.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "ts-mls": "2.0.0-rc.2"
+    "ts-mls": "2.0.0-rc.3"
   },
   "devDependencies": {
     "@eslint/js": "9.37.0",
@@ -38,15 +38,17 @@
     "@types/pg": "^8.15.5",
     "@types/react": "19.2.0",
     "@types/react-dom": "19.2.0",
-    "@vitest/coverage-v8": "3.2.4",
+    "@vitest/browser-playwright": "4.0.17",
+    "@vitest/coverage-v8": "4.0.17",
     "eslint": "9.36.0",
     "eslint-plugin-import": "2.32.0",
     "madge": "8.0.0",
+    "playwright": "^1.50.1",
     "prettier": "3.6.2",
     "tsx": "4.20.5",
     "typescript": "5.9.2",
     "typescript-eslint": "8.44.0",
-    "vitest": "3.2.4"
+    "vitest": "4.0.17"
   },
   "repository": {
     "type": "git",
@@ -59,6 +61,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "playwright:install": "playwright install",
     "coverage": "vitest run --coverage",
     "lint": "eslint src/",
     "format": "prettier -w .",

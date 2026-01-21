@@ -1,6 +1,7 @@
 import Fastify from "fastify"
 import { decode } from "cbor-x"
 import helmet from "@fastify/helmet"
+import cors from "@fastify/cors"
 import postgres from "@fastify/postgres"
 import { JWK, exportJWK, jwtVerify } from "jose"
 import { Readable } from "stream"
@@ -37,6 +38,12 @@ export async function build(config: {
   const fastify = Fastify()
 
   fastify.register(helmet, { global: true })
+
+  fastify.register(cors, {
+    origin: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  })
 
   fastify.register(postgres, {
     connectionString: config.pgConnection,
@@ -243,7 +250,7 @@ export async function build(config: {
 
   // Register route handlers with prefixes using Fastify plugin pattern
   await fastify.register(
-    (fastify, opts, done) => {
+    (fastify, _opts, done) => {
       registerAuthRoutes(fastify, config, {
         authenticate,
         queryUserExists,
@@ -262,7 +269,7 @@ export async function build(config: {
 
   // Register content routes with prefix using Fastify plugin pattern
   await fastify.register(
-    (fastify, opts, done) => {
+    (fastify, _opts, done) => {
       registerContentRoutes(fastify, config, {
         authenticate,
         streamToBuffer,
@@ -274,7 +281,7 @@ export async function build(config: {
 
   // Register message routes with prefix using Fastify plugin pattern
   await fastify.register(
-    (fastify, opts, done) => {
+    (fastify, _opts, done) => {
       registerMessageRoutes(fastify, config, {
         authenticate,
       }).then(() => done()).catch(done)
