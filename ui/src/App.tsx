@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
-import LeafletRouteMap from './LeafleftMapView.js';
-import FileUpload from './FileUploader.js';
-import { useAuth, useAuthRequired } from './useAuth.js';
-import ProfileView from './ProfileView.js';
+import { useAuthRequired } from './useAuth.js';
 import { Link } from 'react-router';
-import { BulkImport } from './Import.js';
 import {getTimeline, TimelineItem} from "pathhub-client/src/timeline.js"
-import { createContentClient, StorageClient } from 'pathhub-client/src/http/storageClient.js';
+import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
 import { createRemoteStore } from 'pathhub-client/src/remoteStore.js';
 import { getCiphersuiteFromName, getCiphersuiteImpl } from 'ts-mls';
 import { getUserInfo, UserInfo } from 'pathhub-client/src/userInfo.js';
@@ -18,11 +14,11 @@ import { createAuthenticationClient } from 'pathhub-client/src/http/authenticati
 export function getAvatarImageUrl(userInfo: UserInfo): string | undefined {
   const {avatar} = userInfo
 
-  if (avatar.contentType === "image/svg+xml") {
+  if (avatar?.contentType === "image/svg+xml") {
     const decoded = new TextDecoder().decode(avatar.body)
     const imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(decoded)}`
     return imageUrl
-  } else if (avatar.contentType === "image/png" || avatar.contentType === "image/jpeg") {
+  } else if (avatar?.contentType === "image/png" || avatar?.contentType === "image/jpeg") {
     const blob = new Blob([bytesToArrayBuffer(avatar.body)], { type: avatar.contentType });
     const url = URL.createObjectURL(blob);
 

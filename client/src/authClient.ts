@@ -183,11 +183,24 @@ export function createAuthClient(baseUrl: string): AuthenticationClient {
 
 export function parseToken(token: string): { userId: string, expires: number, username: string } {
   const decoded = base64ToBytes(token.split(".").at(1)!)
-  const parsed = JSON.parse(new TextDecoder().decode(decoded))
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(decoded))
+
+  if (parsed === null || typeof parsed !== "object") {
+    throw new Error("Invalid token payload")
+  }
+
+  const obj = parsed as Record<string, unknown>
+  const sub = obj.sub
+  const exp = obj.exp
+  const username = obj["ph-user"]
+
+  if (typeof sub !== "string" || typeof exp !== "number" || typeof username !== "string") {
+    throw new Error("Invalid token payload")
+  }
 
   return {
-    userId: parsed.sub,
-    expires: parsed.exp,
-    username: parsed["ph-user"]
+    userId: sub,
+    expires: exp,
+    username,
   }
 }

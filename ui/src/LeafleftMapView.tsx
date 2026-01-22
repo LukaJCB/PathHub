@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Polyline, Marker } from 'react-leaflet';
-import { LatLngExpression, Icon } from 'leaflet';
+import { LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import React, { CSSProperties } from 'react';
+import React from 'react';
 
 // Fix missing default marker icons in Leaflet (important for Webpack/Vite)
 import L from 'leaflet';
@@ -23,7 +23,7 @@ type Props = {
 const LeafletRouteMap: React.FC<Props> = ({ route, showMarkers = true, width = "100%", height = "500px" }) => {
   if (!route || route.length === 0) return null;
 
-  const center: LatLngExpression = route[Math.floor(route.length / 2)];
+  const center: LatLngExpression = route[Math.floor(route.length / 2)]!;
 
 
   return (
@@ -42,8 +42,8 @@ const LeafletRouteMap: React.FC<Props> = ({ route, showMarkers = true, width = "
 
       {showMarkers && (
         <>
-          <Marker position={route[0]} />
-          <Marker position={route[route.length - 1]} />
+          <Marker position={route[0]!} />
+          <Marker position={route[route.length - 1]!} />
         </>
       )}
     </MapContainer>

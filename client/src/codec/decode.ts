@@ -6,37 +6,37 @@ import { FollowRequests } from "../followRequest";
 import { Message, MessagePublic } from "../message";
 
 export function decodePostManifestPage(pm: Uint8Array): PostManifestPage {
-    return decode(pm)
+    return decode(pm) as PostManifestPage
 }
 
 export function decodeComment(c: Uint8Array): InteractionComment {
-    return decode(c)
+    return decode(c) as InteractionComment
 }
 
 export function decodeComments(cs: Uint8Array): InteractionComment[] {
-    return decode(cs)
+    return decode(cs) as InteractionComment[]
 }
 
 export function decodeCommentTbs(c: Uint8Array): CommentTbs {
-    return decode(c)
+    return decode(c) as CommentTbs
 }
 
 
 export function decodeLike(l: Uint8Array): InteractionLike {
-    return decode(l)
+    return decode(l) as InteractionLike
 }
 
 export function decodeLikes(ls: Uint8Array): InteractionLike[] {
-    return decode(ls)
+    return decode(ls) as InteractionLike[]
 }
 
 export function decodeLikeTbs(l: Uint8Array): LikeTbs {
-    return decode(l)
+    return decode(l) as LikeTbs
 }
 
 
 export function decodeRoute(r: Uint8Array): [number, number, number][] {
-    return decode(r)
+    return decode(r) as [number, number, number][]
 }
 
 
@@ -47,36 +47,36 @@ export function decodeClientState(gs: Uint8Array): ClientState {
 
 
 export function decodeFollowRequests(reqs: Uint8Array): FollowRequests {
-    return decode(reqs)
+    return decode(reqs) as FollowRequests
 }
 
 //todo replace within ts-mls
 export function decodePrivateKeyPackage(pkp: Uint8Array): PrivateKeyPackage {
-    return decode(pkp)
+    return decode(pkp) as PrivateKeyPackage
 }
 
 
 export function decodeManifest(m: Uint8Array): Manifest {
-    return decode(m)
+    return decode(m) as Manifest
 }
 
 export function decodeMessage(m: Uint8Array): Message {
-    return decode(m)
+    return decode(m) as Message
 }
 
 export function decodeFollowerManifest(m: Uint8Array): FollowerManifest {
-    return decode(m)
+    return decode(m) as FollowerManifest
 }
 
 export function decodeFollowerGroupState(m: Uint8Array): FollowerGroupState {
-    return decode(m)
+    return decode(m) as FollowerGroupState
 }
 
 
 export function decodeMessagePublic(mp: Uint8Array): MessagePublic {
-    return decode(mp)
+    return decode(mp) as MessagePublic
 }
 
 export function decodePostManifest(m: Uint8Array): PostManifest {
-    return decode(m)
+    return decode(m) as PostManifest
 }

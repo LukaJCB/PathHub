@@ -288,13 +288,13 @@ async function loadIndexes(
   ])
 
   const collection = {
-    byDistance: decode(new Uint8Array(byDistanceData)),
-    byDuration: decode(new Uint8Array(byDurationData)),
-    byElevation: decode(new Uint8Array(byElevationData)),
-    byType: decode(new Uint8Array(byTypeData)),
-    byGear: decode(new Uint8Array(byGearData)),
-    wordIndex: decode(new Uint8Array(wordIndexData)),
-    postLocator: decode(new Uint8Array(postLocatorData)),
+    byDistance: decode(new Uint8Array(byDistanceData)) as IndexCollection["byDistance"],
+    byDuration: decode(new Uint8Array(byDurationData)) as IndexCollection["byDuration"],
+    byElevation: decode(new Uint8Array(byElevationData)) as IndexCollection["byElevation"],
+    byType: decode(new Uint8Array(byTypeData)) as IndexCollection["byType"],
+    byGear: decode(new Uint8Array(byGearData)) as IndexCollection["byGear"],
+    wordIndex: decode(new Uint8Array(wordIndexData)) as IndexCollection["wordIndex"],
+    postLocator: decode(new Uint8Array(postLocatorData)) as IndexCollection["postLocator"],
     typeMap: indexManifest.typeMap,
     gearMap: indexManifest.gearMap,
     version: 1

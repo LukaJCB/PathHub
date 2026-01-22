@@ -1,0 +1,112 @@
+name: CI
+permissions:
+  contents: read
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start infra (Postgres + MinIO)
+        run: docker compose -f authentication/docker-compose.yml up -d
+
+      - name: Server integration tests
+        run: pnpm -C authentication test
+
+      - name: Wait for infra to be ready
+        run: |
+          echo "Waiting for Postgres..."
+          for i in {1..60}; do
+            if docker compose -f authentication/docker-compose.yml exec -T postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres is ready"
+              break
+            fi
+            sleep 1
+          done
+
+          echo "Waiting for MinIO..."
+          for i in {1..60}; do
+            if curl -fsS http://localhost:9000/minio/health/ready > /dev/null; then
+              echo "MinIO is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for infra" >&2
+          docker compose -f authentication/docker-compose.yml ps
+          docker compose -f authentication/docker-compose.yml logs --no-color || true
+          exit 1
+
+      - name: Generate authentication env
+        run: |
+          pnpm -C authentication generate-keys --force
+
+      - name: Start authentication server
+        run: |
+          pnpm -C authentication start > authentication-server.log 2>&1 &
+          echo $! > authentication-server.pid
+
+      - name: Wait for server to be ready
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:3000/.well-known/jwks.json > /dev/null; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for auth server" >&2
+          echo "--- authentication-server.log ---" >&2
+          cat authentication-server.log >&2 || true
+          exit 1
+
+      - name: Client node tests
+        run: pnpm -C client test
+
+      - name: Install Playwright (Chromium)
+        run: pnpm -C client exec playwright install --with-deps chromium
+
+      - name: Client browser tests
+        run: pnpm -C client test:browser
+
+      - name: Dump logs (always)
+        if: always()
+        run: |
+          echo "--- authentication-server.log ---"
+          cat authentication-server.log || true
+          echo "--- docker compose logs ---"
+          docker compose -f authentication/docker-compose.yml logs --no-color || true
+
+      - name: Cleanup (always)
+        if: always()
+        run: |
+          if [ -f authentication-server.pid ]; then
+            kill $(cat authentication-server.pid) || true
+          fi
+          docker compose -f authentication/docker-compose.yml down -v || true

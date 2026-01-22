@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuthRequired } from "./useAuth";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate } from "react-router";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
 import { updateAvatar } from "pathhub-client/src/userInfo.js";
 import { bytesToArrayBuffer } from "ts-mls/util/byteArray.js";
@@ -60,7 +60,7 @@ export const UploadAvatarView: React.FC = () => {
       const buf = new Uint8Array(await file.arrayBuffer());
       await updateAvatar(buf, file.type as "image/png" | "image/jpeg" | "image/svg+xml", storageClient);
       const existingAvatarUrl = user.avatarUrl
-      updateUser({avatarUrl: previewUrl})
+      updateUser({avatarUrl: previewUrl!})
 
       URL.revokeObjectURL(existingAvatarUrl)
       setCurrentAvatarUrl(previewUrl)

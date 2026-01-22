@@ -18,7 +18,7 @@ export async function updateAvatar(avatar: Uint8Array, mimeType: string, storage
     case "image/png":
     case "image/jpeg": 
     case "image/svg+xml":
-      storageClient.putAvatar(avatar, mimeType)
+      await storageClient.putAvatar(avatar, mimeType)
       break;
     default: 
       throw new Error("Cannot upload avatar with unsupported mime type")

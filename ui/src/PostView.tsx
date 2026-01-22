@@ -52,7 +52,7 @@ export const PostView = () => {
             if (!result) {
                 setCanView(false)
             } else {
-                const [currentPage, pageManifest] = result
+                const [currentPage, _pageManifest] = result
                 setPostManifestPage(currentPage)
 
                 const p = currentPage[0].posts.find(pm => pm.main[0] === storageId)
@@ -101,7 +101,7 @@ export const PostView = () => {
         const fetchData = async () => {
             const userInfo = await getUserInfo(profileUserId, rs.client, createAuthenticationClient("/auth"), user.token)
             const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
-            const username = profileUserId === user.id ? user.name : userInfo.info.username
+            const username = profileUserId === user.id ? user.name : userInfo.info?.username
             if (avatar) { setAvatar(avatar) }
             if (username) { setUsername(username)}
 
@@ -132,7 +132,7 @@ export const PostView = () => {
 
     async function addComment(e: FormEvent) {
         e.preventDefault()
-        const isOwnPost = profileUserId === user.id
+        // const isOwnPost = profileUserId === user.id
 
         const {newManifest, comment} = await commentPost(commentText, post!, profileUserId,
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
@@ -162,7 +162,7 @@ export const PostView = () => {
         const isOwnPost = profileUserId === user.id
         setLikes(likes + 1)
         setUserHasLiked(true)
-        const {newManifest, like} = await likePost(post!, 
+        const {newManifest, like: _like} = await likePost(post!, 
             (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
              user.ownGroupState, isOwnPost, user.id, rs, 
              postManifestPage![0], 

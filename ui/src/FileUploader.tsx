@@ -528,11 +528,11 @@ export async function parseFitData(buffer: ArrayBuffer, minimumDistanceThreshold
   let totalElevationGain = 0;
 
   for (let i = 1; i < coords.length; i++) {
-    const prev = coords[i - 1];
-    const curr = coords[i];
+    const prev = coords[i - 1]!;
+    const curr = coords[i]!;
 
-    const prevDist = distances[i - 1];
-    const currDist = distances[i];
+    const prevDist = distances[i - 1]!;
+    const currDist = distances[i]!;
 
     let distanceDelta: number;
     if (!isNaN(prevDist) && !isNaN(currDist) && currDist >= prevDist) {
@@ -578,8 +578,8 @@ export function parseGpxData(text: string, minimumDistanceThreshold: number, min
   let maxElevation = 0
 
   for (let i = 1; i < trackpoints.length; i++) {
-    const prev = coords[i - 1];
-    const curr = parse(trackpoints[i]);
+    const prev = coords[i - 1]!;
+    const curr = parse(trackpoints[i]!);
     coords[i] = curr;
     const distanceDelta = haversine(prev[0], prev[1], curr[0], curr[1]);
     if (distanceDelta > minimumDistanceThreshold) {
@@ -594,7 +594,7 @@ export function parseGpxData(text: string, minimumDistanceThreshold: number, min
   }
 
 
-  const totalDuration = Date.parse(trackpoints[trackpoints.length - 1].getElementsByTagName("time").item(0)!.innerHTML || '') -
+  const totalDuration = Date.parse(trackpoints[trackpoints.length - 1]!.getElementsByTagName("time").item(0)!.innerHTML || '') -
     Date.parse(trackpoints[0].getElementsByTagName("time").item(0)!.innerHTML || '');
   return { trackpoints, totalDistance, totalElevationGain, coords, totalDuration };
 }
@@ -627,7 +627,7 @@ export function parseTcxData(text: string, minimumDistanceThreshold: number, min
   // Check for parse errors
   const parserError = xmlDoc.getElementsByTagName('parsererror');
   if (parserError.length > 0) {
-    console.error('TCX XML parsing error:', parserError[0].textContent);
+    console.error('TCX XML parsing error:', parserError[0]!.textContent);
     return undefined;
   }
 
@@ -658,7 +658,7 @@ export function parseTcxData(text: string, minimumDistanceThreshold: number, min
   const coords: [number, number, number][] = [];
   
   for (let i = 0; i < trackpoints.length; i++) {
-    const parsed = parse(trackpoints[i]);
+    const parsed = parse(trackpoints[i]!);
     if (parsed) {
       coords.push(parsed);
     }
@@ -673,8 +673,8 @@ export function parseTcxData(text: string, minimumDistanceThreshold: number, min
   let totalElevationGain = 0;
 
   for (let i = 1; i < coords.length; i++) {
-    const prev = coords[i - 1];
-    const curr = coords[i];
+    const prev = coords[i - 1]!;
+    const curr = coords[i]!;
     const distanceDelta = haversine(prev[0], prev[1], curr[0], curr[1]);
     if (distanceDelta > minimumDistanceThreshold) {
       totalDistance += distanceDelta;
@@ -683,8 +683,8 @@ export function parseTcxData(text: string, minimumDistanceThreshold: number, min
     if (delta > minimumGainThreshold && delta < maximumGainThreshold) totalElevationGain += delta;
   }
 
-  const firstTime = trackpoints[0].getElementsByTagName('Time')[0]?.textContent;
-  const lastTime = trackpoints[trackpoints.length - 1].getElementsByTagName('Time')[0]?.textContent;
+  const firstTime = trackpoints[0]!.getElementsByTagName('Time')[0]?.textContent;
+  const lastTime = trackpoints[trackpoints.length - 1]!.getElementsByTagName('Time')[0]?.textContent;
   
   const totalDuration = (firstTime && lastTime) 
     ? Date.parse(lastTime) - Date.parse(firstTime)

@@ -83,9 +83,9 @@ const MapLibreRouteMap: React.FC<Props> = ({
 
 
       if (showMarkers) {
-        new maplibregl.Marker().setLngLat(coordinates[0]).addTo(map);
+        new maplibregl.Marker().setLngLat(coordinates[0]!).addTo(map);
         new maplibregl.Marker()
-          .setLngLat(coordinates[coordinates.length - 1])
+          .setLngLat(coordinates[coordinates.length - 1]!)
           .addTo(map);
       }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router"
-import { IndexCollection, PostLocatorEntry, PostReference } from "pathhub-client/src/manifest.js"
+import { IndexCollection, PostLocatorEntry } from "pathhub-client/src/manifest.js"
 import { getAllIndexes, searchByTitle, tokenizeTitle } from "pathhub-client/src/indexing.js"
 import { getPostTypeEmoji, getGearEmoji } from "./postTypeEmojis"
 import { createRemoteStore } from "pathhub-client/src/remoteStore.js"
@@ -77,7 +77,7 @@ export const SearchView: React.FC = () => {
 
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byDistance.length; i++) {
-        indexMap.set(indexes.byDistance[i].postId, i)
+        indexMap.set(indexes.byDistance[i]!.postId, i)
       }
       sorted = [...results].sort((a, b) => {
         const indexA = indexMap.get(a.id) ?? Infinity
@@ -88,7 +88,7 @@ export const SearchView: React.FC = () => {
 
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byElevation.length; i++) {
-        indexMap.set(indexes.byElevation[i].postId, i)
+        indexMap.set(indexes.byElevation[i]!.postId, i)
       }
       sorted = [...results].sort((a, b) => {
         const indexA = indexMap.get(a.id) ?? Infinity
@@ -99,7 +99,7 @@ export const SearchView: React.FC = () => {
 
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byDuration.length; i++) {
-        indexMap.set(indexes.byDuration[i].postId, i)
+        indexMap.set(indexes.byDuration[i]!.postId, i)
       }
       sorted = [...results].sort((a, b) => {
         const indexA = indexMap.get(a.id) ?? Infinity

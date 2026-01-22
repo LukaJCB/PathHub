@@ -1,7 +1,5 @@
 import { FormEvent, useState } from "react";
-import {AuthenticationClient, createAuthClient} from "pathhub-client/src/authClient.js"
-import {makeStore} from "pathhub-client/src/indexedDbStore.js"
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { useAuth } from "./useAuth";
 
 

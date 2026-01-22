@@ -199,7 +199,7 @@ export function BulkImport() {
     const rs = createRemoteStore(createContentClient("/storage", user.token))
 
     
-    const profilePic = entries.find(e => e.filename === "profile.jpg")
+    const profilePic = entries.find(e => e.filename === "profile.jpg")!
     if (profilePic.directory === true) throw new Error("Jpg is dir")
     
     const b = await profilePic.getData(new BlobWriter("image/jpeg"))
@@ -219,7 +219,7 @@ export function BulkImport() {
             parseIssues++
             continue;
         }
-        const entry = activityMap[record.Filename]
+        const entry = activityMap[record.Filename]!
         if (entry.directory === true) throw new Error("No good")
             const name = entry.filename.toLowerCase();
             const isGpx = name.endsWith(".gpx") || name.endsWith(".gpx.gz");
@@ -242,7 +242,7 @@ export function BulkImport() {
             console.log("found non jpg url", url)
             continue;
           }
-          const e = mediaMap[url]
+          const e = mediaMap[url]!
           if (e.directory === true) throw new Error("Not good at all")
 
           const b = await e.getData(new BlobWriter("image/jpeg"))

@@ -59,7 +59,7 @@ export function uint8ToBase64Url(u8: Uint8Array): string {
 }
 
 export function base64urlToUint8(s: string): Uint8Array<ArrayBuffer> {
-  const binary = globalThis.atob(s.replace(/\-/g, "+").replace(/\_/g, "/").replace(/=+$/, ""))
+  const binary = globalThis.atob(s.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, ""))
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i)

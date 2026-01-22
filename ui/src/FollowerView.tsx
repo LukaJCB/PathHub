@@ -1,12 +1,10 @@
 import { useAuthRequired } from "./useAuth";
 import { createRemoteStore, RemoteStore } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
-import { getAllFollowers, getAllFollowersForNonOwner } from "pathhub-client/src/followRequest.js";
-import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js";
+import { getAllFollowersForNonOwner } from "pathhub-client/src/followRequest.js";
 import { Link, useParams } from "react-router";
 import { useEffect, useState } from "react";
-import { getGroupStateForUser, getPostManifestForUser } from "pathhub-client/src/profile.js";
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls";
+import { getGroupStateForUser } from "pathhub-client/src/profile.js";
 import { getUserInfo } from "pathhub-client/src/userInfo.js";
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js";
 import { getAvatarImageUrl } from "./App";
@@ -14,10 +12,9 @@ import { getAvatarImageUrl } from "./App";
 
 export const FollowerView: React.FC = () => {
 
-    const {user,updateUser} = useAuthRequired()
+    const {user} = useAuthRequired()
     const params = useParams();
     const profileUserId = params.userId!
-    const messager: MessageClient = createMessageClient("/messaging", user.token)
     const remoteStore: RemoteStore = createRemoteStore(createContentClient("/storage", user.token))
     const [followers, setFollowers] = useState<string[]>([])
     const [avatar, setAvatar] = useState<string | null>(null)
@@ -46,8 +43,8 @@ export const FollowerView: React.FC = () => {
                         followers.push(userId)
                         const userInfo = await getUserInfo(userId, remoteStore.client, createAuthenticationClient("/auth"), user.token)
                         const avatar = getAvatarImageUrl(userInfo)
-                        avatars.set(userId, avatar)
-                        const username = userInfo.info.username
+                        avatars.set(userId, avatar!)
+                        const username = userInfo.info!.username
                         usernames.set(userId, username)
                     }
 
@@ -57,7 +54,7 @@ export const FollowerView: React.FC = () => {
 
                     const userInfo = await getUserInfo(profileUserId, remoteStore.client, createAuthenticationClient("/auth"), user.token)
                     const avatar = profileUserId === user.id ? user.avatarUrl : getAvatarImageUrl(userInfo)
-                    const username = profileUserId === user.id ? user.name : userInfo.info.username
+                    const username = profileUserId === user.id ? user.name : userInfo.info!.username
                     if (avatar) { setAvatar(avatar) }
                     if (username) { setUsername(username)}
                 }

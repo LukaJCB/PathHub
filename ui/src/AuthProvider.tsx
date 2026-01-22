@@ -1,7 +1,6 @@
 import { useState, ReactNode, useEffect } from "react";
 import { AuthContext, User } from "./authContext.js";
 import { AuthenticationClient, createAuthClient, parseToken } from "pathhub-client/src/authClient.js";
-import { makeStore } from "pathhub-client/src/indexedDbStore.js";
 import {getOrCreateManifest} from "pathhub-client/src/init.js"
 import { base64urlToUint8, createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js";
 import { createContentClient } from "pathhub-client/src/http/storageClient.js";
@@ -45,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               ownGroupState: groupState,
               masterKey,
               token,
-              avatarUrl
+              avatarUrl: avatarUrl!
             });
           }
         }
@@ -64,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const { userId, manifest, postManifest, page, followRequests,  groupState, avatarUrl } = await setupUserState(res.token, res.manifest, res.masterKey)
 
-    setUser({id: userId, name: username, currentPage: page, postManifest, followRequests, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey, avatarUrl })
+    setUser({id: userId, name: username, currentPage: page, postManifest, followRequests, manifest, manifestId: res.manifest, ownGroupState: groupState, token: res.token, masterKey: res.masterKey, avatarUrl: avatarUrl! })
     
   }
 
@@ -92,7 +91,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 async function setupUserState(token: string, manifestId: string, masterKey: Uint8Array) {
   const {userId, username} = parseToken(token)
-  const ls = await makeStore(userId);
   const rs = createRemoteStore(createContentClient("/storage", token))
 
   const [manifest, postManifest, page ,groupState, keyPair] = await getOrCreateManifest(userId, manifestId, masterKey, rs)

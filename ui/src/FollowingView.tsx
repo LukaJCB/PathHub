@@ -27,7 +27,7 @@ export const FollowingView: React.FC = () => {
                 const userInfo = await getUserInfo(id, remoteStore.client, createAuthenticationClient("/auth"), user.token)
                 const avatar = getAvatarImageUrl(userInfo)
                 if (avatar) avatars.set(id, avatar)
-                const username = userInfo.info.username
+                const username = userInfo.info!.username
                 if (username) usernames.set(id, username)
             }
             setAvatars(avatars)

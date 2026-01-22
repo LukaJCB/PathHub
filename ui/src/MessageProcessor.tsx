@@ -1,11 +1,8 @@
 import {
   useQuery,
-  useMutation,
   useQueryClient,
-  QueryClient,
-  QueryClientProvider,
 } from '@tanstack/react-query'
-import { useAuth, useAuthRequired } from './useAuth';
+import { useAuth } from './useAuth';
 import { createMessageClient, MessageClient } from 'pathhub-client/src/http/messageClient.js';
 import { base64urlToUint8, createRemoteStore, RemoteStore } from 'pathhub-client/src/remoteStore.js';
 import { createContentClient } from 'pathhub-client/src/http/storageClient.js';
@@ -33,7 +30,7 @@ export const MessageProcessor: React.FC = () => {
         if (user) {
             const messager: MessageClient = createMessageClient("/messaging", user.token)
             const remoteStore: RemoteStore = createRemoteStore(createContentClient("/storage", user.token))
-            const [followRequests, manifest, postManifest, currentPage, followerManifest, clientState]  = await processIncoming(
+            const [followRequests, manifest, postManifest, currentPage, _followerManifest, _clientState]  = await processIncoming(
                 messager, user.manifest, user.postManifest, user.currentPage, base64urlToUint8(user.manifestId), user.ownGroupState, user.followRequests, user.id, user.masterKey, remoteStore, await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")))
             updateUser({manifest, followRequests, postManifest, currentPage})
             return true

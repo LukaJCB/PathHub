@@ -17,7 +17,7 @@ export async function getWordIndex(manifest: Manifest, masterKey: Uint8Array, rs
   
   const decryptedIdx = await retrieveAndDecryptContent(rs, [idxManifest.wordIndex, masterKey])
   
-  return decode(new Uint8Array(decryptedIdx))
+  return decode(new Uint8Array(decryptedIdx)) as Map<string, string[]>
 }
 
 export async function getPostLocatorAndMaps(manifest: Manifest, masterKey: Uint8Array, rs: RemoteStore): Promise<[Map<string, PostLocatorEntry>, Map<number, string>, Map<number, string>]> {
@@ -27,7 +27,7 @@ export async function getPostLocatorAndMaps(manifest: Manifest, masterKey: Uint8
   
   const decryptedIdx = await retrieveAndDecryptContent(rs, [idxManifest.postLocator, masterKey])
   
-  const postLocator: Map<string, PostLocatorEntry> = decode(new Uint8Array(decryptedIdx))
+  const postLocator = decode(new Uint8Array(decryptedIdx)) as Map<string, PostLocatorEntry>
   return [postLocator, idxManifest.typeMap, idxManifest.gearMap] as const
 }
 
@@ -54,13 +54,13 @@ export async function getAllIndexes(manifest: Manifest, masterKey: Uint8Array, r
   ])
 
   return {
-    byDistance: decode(new Uint8Array(byDistanceDecrypted)),
-    byDuration: decode(new Uint8Array(byDurationDecrypted)),
-    byElevation: decode(new Uint8Array(byElevationDecrypted)),
-    byType: decode(new Uint8Array(byTypeDecrypted)),
-    byGear: decode(new Uint8Array(byGearDecrypted)),
-    wordIndex: decode(new Uint8Array(wordIndexDecrypted)),
-    postLocator: decode(new Uint8Array(postLocatorDecrypted)),
+    byDistance: decode(new Uint8Array(byDistanceDecrypted)) as IndexCollection["byDistance"],
+    byDuration: decode(new Uint8Array(byDurationDecrypted)) as IndexCollection["byDuration"],
+    byElevation: decode(new Uint8Array(byElevationDecrypted)) as IndexCollection["byElevation"],
+    byType: decode(new Uint8Array(byTypeDecrypted)) as IndexCollection["byType"],
+    byGear: decode(new Uint8Array(byGearDecrypted)) as IndexCollection["byGear"],
+    wordIndex: decode(new Uint8Array(wordIndexDecrypted)) as IndexCollection["wordIndex"],
+    postLocator: decode(new Uint8Array(postLocatorDecrypted)) as IndexCollection["postLocator"],
     typeMap: idxManifest.typeMap,
     gearMap: idxManifest.gearMap
   }
