@@ -20,7 +20,7 @@ export const postTypeEmojiMap: Record<string, string> = postTypeOptions.reduce(
     acc[value] = emoji
     return acc
   },
-  {} as Record<string, string>
+  {} as Record<string, string>,
 )
 
 export function getPostTypeEmoji(postType?: string): string | undefined {

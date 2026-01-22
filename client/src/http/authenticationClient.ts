@@ -24,11 +24,17 @@ export interface AuthClient {
 
   startLogin(body: { username: string; startLoginRequest: string }): Promise<{ response: string }>
 
-  finishLogin(body: { username: string; finishLoginRequest: string }): Promise<{ token: string; manifest: string, encryptedMasterKey: Uint8Array, nonce: Uint8Array, salt: Uint8Array }>
+  finishLogin(body: {
+    username: string
+    finishLoginRequest: string
+  }): Promise<{ token: string; manifest: string; encryptedMasterKey: Uint8Array; nonce: Uint8Array; salt: Uint8Array }>
 
-  getUserInfo(userId: string[], token: string): Promise<{ username: string, key: Uint8Array, userid: string }[]>
+  getUserInfo(userId: string[], token: string): Promise<{ username: string; key: Uint8Array; userid: string }[]>
 
-  lookupUser(username: string, token: string): Promise<{ username: string, key: Uint8Array, userid: string } | undefined>
+  lookupUser(
+    username: string,
+    token: string,
+  ): Promise<{ username: string; key: Uint8Array; userid: string } | undefined>
 
   getJwks(): Promise<JWKWithMeta>
 }
@@ -54,10 +60,14 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
     return decode(new Uint8Array(arrayBuffer)) as TResponse
   }
 
-  async function postCBORWithAuth<TRequest, TResponse>(endpoint: string, body: TRequest, token: string): Promise<TResponse> {
+  async function postCBORWithAuth<TRequest, TResponse>(
+    endpoint: string,
+    body: TRequest,
+    token: string,
+  ): Promise<TResponse> {
     const res = await fetch(baseUrl + endpoint, {
       method: "POST",
-      headers: {...defaultHeaders, Authorization: `Bearer ${token}` },
+      headers: { ...defaultHeaders, Authorization: `Bearer ${token}` },
       body: encode(body) as BufferSource,
     })
 
@@ -85,14 +95,23 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
 
     startLogin: (body) => postCBOR<typeof body, { response: string }>("/auth/startLogin", body),
 
-    finishLogin: (body) => postCBOR<typeof body, { token: string; manifest: string, encryptedMasterKey: Uint8Array, nonce: Uint8Array, salt: Uint8Array }>("/auth/finishLogin", body),
+    finishLogin: (body) =>
+      postCBOR<
+        typeof body,
+        { token: string; manifest: string; encryptedMasterKey: Uint8Array; nonce: Uint8Array; salt: Uint8Array }
+      >("/auth/finishLogin", body),
 
-    getUserInfo: (body, token) => postCBORWithAuth<typeof body,{ username: string, key: Uint8Array, userid: string }[]>(`/auth/userInfo`, body, token),
+    getUserInfo: (body, token) =>
+      postCBORWithAuth<typeof body, { username: string; key: Uint8Array; userid: string }[]>(
+        `/auth/userInfo`,
+        body,
+        token,
+      ),
 
     lookupUser: async (username, token) => {
       const res = await fetch(baseUrl + "/auth/lookupUser", {
         method: "POST",
-        headers: {...defaultHeaders, Authorization: `Bearer ${token}` },
+        headers: { ...defaultHeaders, Authorization: `Bearer ${token}` },
         body: encode({ username }) as BufferSource,
       })
 
@@ -105,7 +124,7 @@ export function createAuthenticationClient(baseUrl: string): AuthClient {
       }
 
       const arrayBuffer = await res.arrayBuffer()
-      return decode(new Uint8Array(arrayBuffer)) as { username: string, key: Uint8Array, userid: string }
+      return decode(new Uint8Array(arrayBuffer)) as { username: string; key: Uint8Array; userid: string }
     },
 
     getJwks: () => getJSON<JWKWithMeta>("/.well-known/jwks.json"),

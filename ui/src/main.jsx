@@ -1,53 +1,137 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from "react-router";
-import App from './App.js'
-import './App.css'
-import RegistrationView from './RegistrationView.js';
-import LoginView from './LoginView.js';
-import FileUpload from './FileUploader.js';
-import { ProtectedRoute } from './ProtectedRoute.js';
-import { AuthProvider } from './AuthProvider.js';
-import { PublicOnlyRoute } from './PublicOnlyRoute.js';
-import PostView from './PostView.js';
-import { Layout } from './Layout.js';
-import ProfileView from './ProfileView.js';
-import FollowRequestsView from './FollowRequests.js';
-import FollowerView from './FollowerView.js';
-import FollowingView from './FollowingView.js';
-import { BulkImport } from './Import.js';
-import UploadAvatarView from './UploadAvatarView.js';
-import {MessageProcessor} from "./MessageProcessor.js"
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from "./queryClient.js";
-import SearchView from "./SearchView.js";
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
+import { BrowserRouter, Routes, Route } from "react-router"
+import App from "./App.js"
+import "./App.css"
+import RegistrationView from "./RegistrationView.js"
+import LoginView from "./LoginView.js"
+import FileUpload from "./FileUploader.js"
+import { ProtectedRoute } from "./ProtectedRoute.js"
+import { AuthProvider } from "./AuthProvider.js"
+import { PublicOnlyRoute } from "./PublicOnlyRoute.js"
+import PostView from "./PostView.js"
+import { Layout } from "./Layout.js"
+import ProfileView from "./ProfileView.js"
+import FollowRequestsView from "./FollowRequests.js"
+import FollowerView from "./FollowerView.js"
+import FollowingView from "./FollowingView.js"
+import { BulkImport } from "./Import.js"
+import UploadAvatarView from "./UploadAvatarView.js"
+import { MessageProcessor } from "./MessageProcessor.js"
+import { QueryClientProvider } from "@tanstack/react-query"
+import { queryClient } from "./queryClient.js"
+import SearchView from "./SearchView.js"
 
-createRoot(document.getElementById('root')).render(
+createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <MessageProcessor/>
+          <MessageProcessor />
           <Routes>
             <Route element={<Layout />}>
-              <Route index element={<ProtectedRoute><App /></ProtectedRoute>} />
-              <Route path="search" element={<ProtectedRoute><SearchView /></ProtectedRoute>} />
-              <Route path="upload" element={<ProtectedRoute><FileUpload /></ProtectedRoute>} />
-              <Route path="bulkImport" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
+              <Route
+                index
+                element={
+                  <ProtectedRoute>
+                    <App />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="search"
+                element={
+                  <ProtectedRoute>
+                    <SearchView />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="upload"
+                element={
+                  <ProtectedRoute>
+                    <FileUpload />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="bulkImport"
+                element={
+                  <ProtectedRoute>
+                    <BulkImport />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="user/:userId/:page?">
-                <Route index element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
-                <Route path=":storageId" element={<ProtectedRoute><PostView /></ProtectedRoute>} />
+                <Route
+                  index
+                  element={
+                    <ProtectedRoute>
+                      <ProfileView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path=":storageId"
+                  element={
+                    <ProtectedRoute>
+                      <PostView />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
-              <Route path="user/:userId/followers" element={<ProtectedRoute><FollowerView /></ProtectedRoute>} />
-              <Route path="following" element={<ProtectedRoute><FollowingView /></ProtectedRoute>} />
-              <Route path="avatar" element={<ProtectedRoute><UploadAvatarView /></ProtectedRoute>} />
-              <Route path="followRequests" element={<ProtectedRoute><FollowRequestsView /></ProtectedRoute>} />
+              <Route
+                path="user/:userId/followers"
+                element={
+                  <ProtectedRoute>
+                    <FollowerView />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="following"
+                element={
+                  <ProtectedRoute>
+                    <FollowingView />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="avatar"
+                element={
+                  <ProtectedRoute>
+                    <UploadAvatarView />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="followRequests"
+                element={
+                  <ProtectedRoute>
+                    <FollowRequestsView />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
-            <Route path="register" element={<PublicOnlyRoute><RegistrationView /></PublicOnlyRoute>} />
-            <Route path="login" element={<PublicOnlyRoute><LoginView /></PublicOnlyRoute>} />
+            <Route
+              path="register"
+              element={
+                <PublicOnlyRoute>
+                  <RegistrationView />
+                </PublicOnlyRoute>
+              }
+            />
+            <Route
+              path="login"
+              element={
+                <PublicOnlyRoute>
+                  <LoginView />
+                </PublicOnlyRoute>
+              }
+            />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>
     </AuthProvider>
-  </StrictMode>
+  </StrictMode>,
 )

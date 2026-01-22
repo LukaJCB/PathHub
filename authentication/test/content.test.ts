@@ -124,7 +124,6 @@ describe("MinIO content upload and fetch", () => {
 
   async function uploadRandomFile() {
     const objectId = randomBytes(16)
-    
 
     const binaryContent = Buffer.from("hello world")
 
@@ -198,10 +197,7 @@ describe("MinIO content upload and fetch", () => {
       nonceHeader: nonceHeader2,
     } = await uploadRandomFile()
 
-    const batchBody = encode([
-      objId1,
-      objId2,
-    ])
+    const batchBody = encode([objId1, objId2])
     const batchResponse = await app.inject({
       method: "POST",
       url: "/content/batch",
@@ -231,10 +227,7 @@ describe("MinIO content upload and fetch", () => {
     const nonExistentObjectId = Buffer.from(randomBytes(16))
     const nonExistentObjectIdString = nonExistentObjectId.toString("base64url")
 
-    const batchBody = encode([
-      objectId,
-      nonExistentObjectId,
-    ])
+    const batchBody = encode([objectId, nonExistentObjectId])
 
     const batchResponse = await app.inject({
       method: "POST",
@@ -282,7 +275,6 @@ describe("MinIO content upload and fetch", () => {
   it("should return 400 when content-type is not application/octet-stream", async () => {
     const binaryContent = Buffer.from("hello world")
 
-
     const res = await app.inject({
       method: "PUT",
       url: `/content/batch`,
@@ -298,10 +290,9 @@ describe("MinIO content upload and fetch", () => {
     expect(decoded).toEqual({ error: "Expected application/octet-stream" })
   })
 
-
   it("should allow update if object exists and is owned by same user", async () => {
     const objectId = Buffer.from(randomBytes(16))
-    
+
     const objectIdString = objectId.toString("base64url")
     const binaryContent = Buffer.from("first content")
     const nonce = randomBytes(16)
@@ -356,7 +347,6 @@ describe("MinIO content upload and fetch", () => {
       .sign(privateKey)
 
     const nonce2 = randomBytes(16)
-
 
     const res2 = await upload(objectId, Buffer.from("malicious overwrite"), nonce2, newToken)
 

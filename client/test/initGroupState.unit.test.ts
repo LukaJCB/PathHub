@@ -4,7 +4,6 @@ import { decode, clientStateDecoder } from "ts-mls"
 import { initGroupState } from "../src/init.js"
 import { encodeClientState } from "../src/codec/encode.js"
 
-
 describe("initGroupState", () => {
   it("produces a ClientState encodable via encodeClientState", async () => {
     const userId = `test-user-${Date.now()}`

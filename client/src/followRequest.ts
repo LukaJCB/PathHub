@@ -25,7 +25,17 @@ import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractio
 import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
 import { FollowerGroupState, FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
 import { base64urlToUint8, RemoteStore, uint8ToBase64Url } from "./remoteStore"
-import { encodeFollowerManifest, encodeFollowRequests, encodeClientState, encodeManifest, encodeMessagePublic, encodePostManifest, encodePostManifestPage, encodePrivateKeyPackage, encodeFollowerGroupState } from "./codec/encode"
+import {
+  encodeFollowerManifest,
+  encodeFollowRequests,
+  encodeClientState,
+  encodeManifest,
+  encodeMessagePublic,
+  encodePostManifest,
+  encodePostManifestPage,
+  encodePrivateKeyPackage,
+  encodeFollowerGroupState,
+} from "./codec/encode"
 import { batchEncryptAndStoreWithSecrets, derivePostSecret, encryptAndStoreWithPostSecret } from "./createPost"
 import { decodeFollowerManifest, decodePrivateKeyPackage } from "./codec/decode"
 import { SignatureKeyPair } from "./init"
@@ -33,15 +43,22 @@ import { keyPackageDecoder, keyPackageEncoder } from "ts-mls/keyPackage.js"
 import { isDefaultCredential } from "ts-mls/credential.js"
 
 export interface FollowRequests {
-  outgoing: {followeeId: string, keyPackage: Uint8Array, privateKeyPackage: Uint8Array}[]
-  incoming: {followerId: string, keyPackage: Uint8Array}[]
+  outgoing: { followeeId: string; keyPackage: Uint8Array; privateKeyPackage: Uint8Array }[]
+  incoming: { followerId: string; keyPackage: Uint8Array }[]
 }
 
 export function getAllFollowers(mlsGroup: ClientState): Uint8Array[] {
   const result: Uint8Array[] = []
   for (const [n, node] of mlsGroup.ratchetTree.entries()) {
-    if (node?.nodeType === nodeTypes.leaf && nodeToLeafIndex(toNodeIndex(n)) !== toLeafIndex(mlsGroup.privatePath.leafIndex)) {
-      if (!isDefaultCredential(node.leaf.credential) || node.leaf.credential.credentialType !== defaultCredentialTypes.basic) throw new Error("No good")
+    if (
+      node?.nodeType === nodeTypes.leaf &&
+      nodeToLeafIndex(toNodeIndex(n)) !== toLeafIndex(mlsGroup.privatePath.leafIndex)
+    ) {
+      if (
+        !isDefaultCredential(node.leaf.credential) ||
+        node.leaf.credential.credentialType !== defaultCredentialTypes.basic
+      )
+        throw new Error("No good")
       result.push(node.leaf.credential.identity)
     }
   }
@@ -52,7 +69,11 @@ export function getAllFollowersForNonOwner(mlsGroup: ClientState, userId: string
   const result: Uint8Array[] = []
   for (const node of mlsGroup.ratchetTree) {
     if (node?.nodeType === nodeTypes.leaf) {
-      if (!isDefaultCredential(node.leaf.credential) || node.leaf.credential.credentialType !== defaultCredentialTypes.basic) throw new Error("No good")
+      if (
+        !isDefaultCredential(node.leaf.credential) ||
+        node.leaf.credential.credentialType !== defaultCredentialTypes.basic
+      )
+        throw new Error("No good")
       const decoded = new TextDecoder().decode(node.leaf.credential.identity)
       if (decoded !== userId) result.push(node.leaf.credential.identity)
     }
@@ -60,7 +81,7 @@ export function getAllFollowersForNonOwner(mlsGroup: ClientState, userId: string
   return result
 }
 
-export const followerManifestExtensionType = 0x0AAA
+export const followerManifestExtensionType = 0x0aaa
 
 export function getAllFollowees(manifest: Manifest): string[] {
   return [...manifest.followerManifests.keys()]
@@ -85,25 +106,23 @@ export async function requestFollow(
 
   const encodedPublicPackage = encode(keyPackageEncoder, publicPackage) //todo should this be encoded as mlsMessage?
 
-  const msg: MessagePublic = { kind: "FollowRequest", keyPackage: encodedPublicPackage } 
+  const msg: MessagePublic = { kind: "FollowRequest", keyPackage: encodedPublicPackage }
 
   const newFollowRequests: FollowRequests = {
     incoming: followRequests.incoming,
     outgoing: [
-      {followeeId, keyPackage: encodedPublicPackage, privateKeyPackage: encodePrivateKeyPackage(privatePackage)}, 
-      ...followRequests.outgoing
-    ]
+      { followeeId, keyPackage: encodedPublicPackage, privateKeyPackage: encodePrivateKeyPackage(privatePackage) },
+      ...followRequests.outgoing,
+    ],
   }
 
   await Promise.all([
     encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), followRequestsId),
-    messageClient.sendMessage({ payload: encodeMessagePublic(msg), recipients: [followeeId] })
+    messageClient.sendMessage({ payload: encodeMessagePublic(msg), recipients: [followeeId] }),
   ])
 
   return newFollowRequests
 }
-
-
 
 export async function receiveFollowRequest(
   keyPackage: Uint8Array,
@@ -114,11 +133,8 @@ export async function receiveFollowRequest(
   remoteStore: RemoteStore,
 ): Promise<FollowRequests> {
   const newFollowRequests: FollowRequests = {
-    incoming: [
-      {keyPackage, followerId},
-      ...followRequests.incoming
-    ],
-    outgoing: followRequests.outgoing
+    incoming: [{ keyPackage, followerId }, ...followRequests.incoming],
+    outgoing: followRequests.outgoing,
   }
 
   await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), followRequestsId)
@@ -149,7 +165,7 @@ export async function allowFollow(
   //include FollowerManifest (id of post manifest and current page) in groupInfoExtensions to send in the welcome
   const followerManifest: FollowerManifest = {
     postManifest: manifest.postManifest,
-    currentPage: postManifest.currentPage
+    currentPage: postManifest.currentPage,
   }
   const extension: GroupInfoExtension = makeCustomExtension({
     extensionType: followerManifestExtensionType,
@@ -161,15 +177,17 @@ export async function allowFollow(
   //   encodeFollowerManifest(followerManifest),
   // )
 
-
-  const commitResult = await createCommit(
-    { state: clientState, context: {cipherSuite: impl, authService: unsafeTestingAuthenticationService} , extraProposals: [addProposal], groupInfoExtensions: [extension], ratchetTreeExtension: true},
-  )
-
+  const commitResult = await createCommit({
+    state: clientState,
+    context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService },
+    extraProposals: [addProposal],
+    groupInfoExtensions: [extension],
+    ratchetTreeExtension: true,
+  })
 
   const newFollowRequests: FollowRequests = {
-    incoming: followRequests.incoming.filter(fr => fr.followerId !== followerId),
-    outgoing: followRequests.outgoing
+    incoming: followRequests.incoming.filter((fr) => fr.followerId !== followerId),
+    outgoing: followRequests.outgoing,
   }
 
   const newGroupState = commitResult.newState
@@ -178,12 +196,12 @@ export async function allowFollow(
 
   const newPostManifest: PostManifest = {
     ...postManifest,
-    currentPage: [postManifest.currentPage[0], newSecret]
+    currentPage: [postManifest.currentPage[0], newSecret],
   }
 
   const newManifest: Manifest = {
     ...manifest,
-    postManifest: [manifest.postManifest[0], newSecret]
+    postManifest: [manifest.postManifest[0], newSecret],
   }
 
   const groupId = uint8ToBase64Url(newGroupState.groupContext.groupId)
@@ -196,22 +214,41 @@ export async function allowFollow(
 
   const followerGroupState: FollowerGroupState = {
     groupState: encodeClientState(newGroupState),
-    cachedInteractions: new Map()
+    cachedInteractions: new Map(),
   }
 
   await Promise.all([
     batchEncryptAndStoreWithSecrets(remoteStore, [
-      { postSecret: newSecret, storageId: base64urlToUint8(manifest.postManifest[0]), content: encodePostManifest(newPostManifest) },
-      { postSecret: newSecret, storageId: base64urlToUint8(postManifest.currentPage[0]), content: encodePostManifestPage(page) },
+      {
+        postSecret: newSecret,
+        storageId: base64urlToUint8(manifest.postManifest[0]),
+        content: encodePostManifest(newPostManifest),
+      },
+      {
+        postSecret: newSecret,
+        storageId: base64urlToUint8(postManifest.currentPage[0]),
+        content: encodePostManifestPage(page),
+      },
       { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest) },
       { postSecret: masterKey, storageId: groupStateStorageId, content: encodeFollowerGroupState(followerGroupState) },
       { postSecret: masterKey, storageId: manifest.followRequests, content: encodeFollowRequests(newFollowRequests) },
     ]),
-    messageClient.sendMessage({ payload: encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, mlsWelcome), kind: "GroupMessage"}), recipients: [followerId] }),
-    recipients.length > 0 ? messageClient.sendMessage({ payload:encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, commitResult.commit), kind: "GroupMessage"}), recipients: recipients }) : Promise.resolve(),
+    messageClient.sendMessage({
+      payload: encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, mlsWelcome), kind: "GroupMessage" }),
+      recipients: [followerId],
+    }),
+    recipients.length > 0
+      ? messageClient.sendMessage({
+          payload: encodeMessagePublic({
+            mlsMessage: encode(mlsMessageEncoder, commitResult.commit),
+            kind: "GroupMessage",
+          }),
+          recipients: recipients,
+        })
+      : Promise.resolve(),
     //localStore.storeGroupState(commitResult.newState),
   ])
-  
+
   return [newFollowRequests, newGroupState, newManifest, newPostManifest]
 }
 
@@ -225,43 +262,46 @@ export async function processAllowFollow(
   remoteStore: RemoteStore,
   impl: CiphersuiteImpl,
 ): Promise<[FollowRequests, Manifest, FollowerManifest, ClientState]> {
-
-  const {keyPackage, privateKeyPackage } = followRequests.outgoing.find(fr => fr.followeeId === followeeId)!
+  const { keyPackage, privateKeyPackage } = followRequests.outgoing.find((fr) => fr.followeeId === followeeId)!
 
   const kp = decode(keyPackageDecoder, keyPackage)!
   const pkp = decodePrivateKeyPackage(privateKeyPackage)
 
-  const {state:group, groupInfoExtensions: extensions} = await joinGroupWithExtensions({ welcome, keyPackage: kp, privateKeys: pkp, context: {authService: unsafeTestingAuthenticationService, cipherSuite: impl}})
+  const { state: group, groupInfoExtensions: extensions } = await joinGroupWithExtensions({
+    welcome,
+    keyPackage: kp,
+    privateKeys: pkp,
+    context: { authService: unsafeTestingAuthenticationService, cipherSuite: impl },
+  })
 
-  const followerManifestExtension = extensions.find(ex => ex.extensionType === followerManifestExtensionType)
+  const followerManifestExtension = extensions.find((ex) => ex.extensionType === followerManifestExtensionType)
   if (!followerManifestExtension) throw new Error("Could not find follower manifest extension")
 
   const followerManifest = decodeFollowerManifest(followerManifestExtension.extensionData)
 
   const followerManifestStorageId = crypto.getRandomValues(new Uint8Array(32))
 
-  const newFollowerManifests: Map<string, Uint8Array> = 
-    new Map([...manifest.followerManifests,
-      [followeeId, followerManifestStorageId]
-    ])
-  
+  const newFollowerManifests: Map<string, Uint8Array> = new Map([
+    ...manifest.followerManifests,
+    [followeeId, followerManifestStorageId],
+  ])
 
   const newFollowRequests: FollowRequests = {
     incoming: followRequests.incoming,
-    outgoing: followRequests.outgoing.filter(fr => fr.followeeId !== followeeId)
+    outgoing: followRequests.outgoing.filter((fr) => fr.followeeId !== followeeId),
   }
 
   const followerGroupState: FollowerGroupState = {
-    groupState: encodeClientState(group) ,cachedInteractions: new Map()
+    groupState: encodeClientState(group),
+    cachedInteractions: new Map(),
   }
 
   const newGroupStateStorageId = crypto.getRandomValues(new Uint8Array(32))
 
-  const newGroupStateManifest = 
-    new Map([
-      ...manifest.groupStates,
-      [uint8ToBase64Url(await deriveGroupIdFromUserId(followeeId)), newGroupStateStorageId]
-    ]);
+  const newGroupStateManifest = new Map([
+    ...manifest.groupStates,
+    [uint8ToBase64Url(await deriveGroupIdFromUserId(followeeId)), newGroupStateStorageId],
+  ])
 
   const newManifest: Manifest = {
     ...manifest,
@@ -278,7 +318,3 @@ export async function processAllowFollow(
 
   return [newFollowRequests, newManifest, followerManifest, group]
 }
-
-
-
-

@@ -1,7 +1,7 @@
-import { FollowRequests } from "pathhub-client/src/followRequest.js";
-import { PostManifestPage, Manifest, PostManifest } from "pathhub-client/src/manifest.js";
-import { createContext } from "react";
-import {ClientState} from "ts-mls"
+import { FollowRequests } from "pathhub-client/src/followRequest.js"
+import { PostManifestPage, Manifest, PostManifest } from "pathhub-client/src/manifest.js"
+import { createContext } from "react"
+import { ClientState } from "ts-mls"
 
 export interface User {
   id: string
@@ -18,12 +18,11 @@ export interface User {
 }
 
 export interface AuthContextValue {
-  user: User | null;
+  user: User | null
   loading: boolean
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<void>
+  logout: () => void
   updateUser: (updates: Partial<User>) => void
 }
 
-export const AuthContext = createContext<AuthContextValue | null>(null);
-
+export const AuthContext = createContext<AuthContextValue | null>(null)

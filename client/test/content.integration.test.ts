@@ -6,7 +6,6 @@ import { base64urlToUint8, uint8ToBase64Url } from "../src/remoteStore.js"
 const authBaseUrl = "http://localhost:3000"
 const contentBaseUrl = "http://localhost:3000"
 
-
 describe("Authentication + Content End-to-End", () => {
   const authClient = createAuthClient(authBaseUrl)
 
@@ -57,10 +56,7 @@ describe("Authentication + Content End-to-End", () => {
       { id: id2, body: body2, nonce: nonce2 },
     ])
 
-    const fetched = await contentClient.batchGetContent([
-      base64urlToUint8(id1),
-      base64urlToUint8(id2),
-    ])
+    const fetched = await contentClient.batchGetContent([base64urlToUint8(id1), base64urlToUint8(id2)])
 
     const e1 = fetched[id1]
     const e2 = fetched[id2]

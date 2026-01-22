@@ -40,7 +40,9 @@ export async function registerAuthRoutes(
     publicKeyId: string
   },
   helpers: {
-    authenticate: (auth: string | undefined) => Promise<{ status: "ok"; userId: string; username: string } | { status: "error" }>
+    authenticate: (
+      auth: string | undefined,
+    ) => Promise<{ status: "ok"; userId: string; username: string } | { status: "error" }>
     queryUserExists: (username: string) => Promise<boolean>
     getRegistrationRecord: (username: string) => Promise<string | undefined>
     createDecoy: () => string
@@ -51,7 +53,9 @@ export async function registerAuthRoutes(
     ) => Promise<{ user: string; manifest: Buffer; key: Buffer; nonce: Buffer; salt: Buffer } | undefined>
     getPublicUserInfo: (userIds: string[]) => Promise<{ username: string; key: Buffer; userid: string }[]>
     getUserByUsername: (username: string) => Promise<{ username: string; key: Buffer; userid: string } | undefined>
-    saveUser: (user: FinishRegistrationBody) => Promise<{ status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }>
+    saveUser: (
+      user: FinishRegistrationBody,
+    ) => Promise<{ status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }>
   },
 ) {
   const startRegistrationSchema = {
@@ -84,36 +88,32 @@ export async function registerAuthRoutes(
     },
   }
 
-  fastify.post<{ Body: StartRegistrationBody }>(
-    "/startRegistration",
-    startRegistrationSchema,
-    async (req, reply) => {
-      const username: string = req.body.username
-      const registrationRequest = req.body.registrationRequest
+  fastify.post<{ Body: StartRegistrationBody }>("/startRegistration", startRegistrationSchema, async (req, reply) => {
+    const username: string = req.body.username
+    const registrationRequest = req.body.registrationRequest
 
-      const userExists = await helpers.queryUserExists(username)
+    const userExists = await helpers.queryUserExists(username)
 
-      if (userExists) return reply.code(409).type("application/cbor").send()
+    if (userExists) return reply.code(409).type("application/cbor").send()
 
-      try {
-        const { registrationResponse } = opaque.server.createRegistrationResponse({
-          serverSetup: config.opaqueSecret,
-          userIdentifier: username,
-          registrationRequest,
-        })
-        return reply
-          .code(200)
-          .type("application/cbor")
-          .send(encode({ response: registrationResponse }))
-      } catch (err) {
-        console.log(err)
-        return reply
-          .code(400)
-          .type("application/cbor")
-          .send(encode({ error: "Invalid input" }))
-      }
-    },
-  )
+    try {
+      const { registrationResponse } = opaque.server.createRegistrationResponse({
+        serverSetup: config.opaqueSecret,
+        userIdentifier: username,
+        registrationRequest,
+      })
+      return reply
+        .code(200)
+        .type("application/cbor")
+        .send(encode({ response: registrationResponse }))
+    } catch (err) {
+      console.log(err)
+      return reply
+        .code(400)
+        .type("application/cbor")
+        .send(encode({ error: "Invalid input" }))
+    }
+  })
 
   const finishRegistrationSchema = {
     schema: {
@@ -198,47 +198,43 @@ export async function registerAuthRoutes(
     },
   }
 
-  fastify.post<{ Body: StartLoginBody }>(
-    "/startLogin",
-    startLoginSchema,
-    async (req, reply) => {
-      const username: string = req.body.username
-      const startLoginRequest = req.body.startLoginRequest
+  fastify.post<{ Body: StartLoginBody }>("/startLogin", startLoginSchema, async (req, reply) => {
+    const username: string = req.body.username
+    const startLoginRequest = req.body.startLoginRequest
 
-      const result = await helpers.getRegistrationRecord(username)
+    const result = await helpers.getRegistrationRecord(username)
 
-      if (result === undefined) {
+    if (result === undefined) {
+      const decoy = helpers.createDecoy()
+      return reply
+        .code(200)
+        .type("application/cbor")
+        .send(encode({ response: decoy }))
+    } else {
+      try {
+        const { loginResponse, serverLoginState } = opaque.server.startLogin({
+          serverSetup: config.opaqueSecret,
+          userIdentifier: username,
+          registrationRecord: result,
+          startLoginRequest,
+        })
+
+        await helpers.saveLoginState(username, serverLoginState)
+
+        return reply
+          .code(200)
+          .type("application/cbor")
+          .send(encode({ response: loginResponse }))
+      } catch (err) {
         const decoy = helpers.createDecoy()
+
         return reply
           .code(200)
           .type("application/cbor")
           .send(encode({ response: decoy }))
-      } else {
-        try {
-          const { loginResponse, serverLoginState } = opaque.server.startLogin({
-            serverSetup: config.opaqueSecret,
-            userIdentifier: username,
-            registrationRecord: result,
-            startLoginRequest,
-          })
-
-          await helpers.saveLoginState(username, serverLoginState)
-
-          return reply
-            .code(200)
-            .type("application/cbor")
-            .send(encode({ response: loginResponse }))
-        } catch (err) {
-          const decoy = helpers.createDecoy()
-
-          return reply
-            .code(200)
-            .type("application/cbor")
-            .send(encode({ response: decoy }))
-        }
       }
-    },
-  )
+    }
+  })
 
   const finishLoginSchema = {
     schema: {
@@ -268,52 +264,48 @@ export async function registerAuthRoutes(
     },
   }
 
-  fastify.post<{ Body: FinishLoginBody }>(
-    "/finishLogin",
-    finishLoginSchema,
-    async (req, reply) => {
-      const username: string = req.body.username
-      const finishLoginRequest = req.body.finishLoginRequest
+  fastify.post<{ Body: FinishLoginBody }>("/finishLogin", finishLoginSchema, async (req, reply) => {
+    const username: string = req.body.username
+    const finishLoginRequest = req.body.finishLoginRequest
 
-      const result = await helpers.getLoginState(username)
+    const result = await helpers.getLoginState(username)
 
-      if (result === undefined) {
+    if (result === undefined) {
+      return reply.code(401).type("application/cbor").send()
+    } else {
+      try {
+        opaque.server.finishLogin({
+          finishLoginRequest,
+          serverLoginState: result,
+        })
+
+        const userInfo = await helpers.getUserInfo(username)
+
+        const token = await new SignJWT({ sub: userInfo?.user, ["ph-user"]: username })
+          .setProtectedHeader({ alg: "EdDSA" })
+          .setIssuedAt()
+          .setNotBefore(Math.floor(Date.now() / 1000))
+          .setExpirationTime("72h")
+          .setIssuer("ph-auth")
+          .sign(config.signingKey)
+
+        return reply
+          .code(200)
+          .type("application/cbor")
+          .send(
+            encode({
+              token,
+              manifest: userInfo?.manifest?.toString("base64url"),
+              encryptedMasterKey: userInfo?.key,
+              nonce: userInfo?.nonce,
+              salt: userInfo?.salt,
+            }),
+          )
+      } catch (err) {
         return reply.code(401).type("application/cbor").send()
-      } else {
-        try {
-          opaque.server.finishLogin({
-            finishLoginRequest,
-            serverLoginState: result,
-          })
-
-          const userInfo = await helpers.getUserInfo(username)
-
-          const token = await new SignJWT({ sub: userInfo?.user, ["ph-user"]: username })
-            .setProtectedHeader({ alg: "EdDSA" })
-            .setIssuedAt()
-            .setNotBefore(Math.floor(Date.now() / 1000))
-            .setExpirationTime("72h")
-            .setIssuer("ph-auth")
-            .sign(config.signingKey)
-
-          return reply
-            .code(200)
-            .type("application/cbor")
-            .send(
-              encode({
-                token,
-                manifest: userInfo?.manifest?.toString("base64url"),
-                encryptedMasterKey: userInfo?.key,
-                nonce: userInfo?.nonce,
-                salt: userInfo?.salt,
-              }),
-            )
-        } catch (err) {
-          return reply.code(401).type("application/cbor").send()
-        }
       }
-    },
-  )
+    }
+  })
 
   const getPublicUserInfoSchema = {
     schema: {
@@ -345,25 +337,18 @@ export async function registerAuthRoutes(
     },
   }
 
-  fastify.post<{ Body: string[] }>(
-    "/userInfo",
-    getPublicUserInfoSchema,
-    async (req, reply) => {
-      const user = await helpers.authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+  fastify.post<{ Body: string[] }>("/userInfo", getPublicUserInfoSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-      const result = await helpers.getPublicUserInfo(req.body)
+    const result = await helpers.getPublicUserInfo(req.body)
 
-      if (result.length < 1) {
-        return reply.code(404).type("application/cbor").send()
-      } else {
-        return reply
-          .code(200)
-          .type("application/cbor")
-          .send(encode(result))
-      }
-    },
-  )
+    if (result.length < 1) {
+      return reply.code(404).type("application/cbor").send()
+    } else {
+      return reply.code(200).type("application/cbor").send(encode(result))
+    }
+  })
 
   const lookupUserSchema = {
     schema: {
@@ -393,25 +378,18 @@ export async function registerAuthRoutes(
     },
   }
 
-  fastify.post<{ Body: { username: string } }>(
-    "/lookupUser",
-    lookupUserSchema,
-    async (req, reply) => {
-      const user = await helpers.authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+  fastify.post<{ Body: { username: string } }>("/lookupUser", lookupUserSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-      const result = await helpers.getUserByUsername(req.body.username)
+    const result = await helpers.getUserByUsername(req.body.username)
 
-      if (!result) {
-        return reply.code(404).type("application/cbor").send()
-      }
+    if (!result) {
+      return reply.code(404).type("application/cbor").send()
+    }
 
-      return reply
-        .code(200)
-        .type("application/cbor")
-        .send(encode(result))
-    },
-  )
+    return reply.code(200).type("application/cbor").send(encode(result))
+  })
 
   const jwkSchema = {
     type: "object",

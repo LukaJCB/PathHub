@@ -2,5 +2,12 @@
   "name": "@pathhub/monorepo",
   "version": "0.0.1",
   "private": true,
-  "packageManager": "pnpm@10.17.1"
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "format": "pnpm -C authentication format && pnpm -C client format && pnpm -C ui format",
+    "format:check": "pnpm -C authentication format:check && pnpm -C client format:check && pnpm -C ui format:check",
+    "lint": "pnpm -C authentication lint && pnpm -C client lint && pnpm -C ui lint",
+    "typecheck": "pnpm -C authentication typecheck && pnpm -C client typecheck && pnpm -C ui typecheck",
+    "verify": "pnpm typecheck && pnpm format:check && pnpm lint"
+  }
 }

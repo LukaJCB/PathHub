@@ -10,5 +10,5 @@ export interface LocalStore {
 
   getGroupState(groupId: string): Promise<ClientState | undefined>
   getCurrentManifest(userId: string): Promise<PostManifestPage | undefined>
-  getContent(storageId: string): Promise<{content: Uint8Array, nonce: Uint8Array} | undefined>
+  getContent(storageId: string): Promise<{ content: Uint8Array; nonce: Uint8Array } | undefined>
 }

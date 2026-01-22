@@ -1,12 +1,19 @@
-import { useAuth } from "./useAuth";
-import { Link, Outlet } from "react-router";
-import { useIsFetching } from "@tanstack/react-query";
-import imgUrl from './assets/logo.png';
+import { useAuth } from "./useAuth"
+import { Link, Outlet } from "react-router"
+import { useIsFetching } from "@tanstack/react-query"
+import imgUrl from "./assets/logo.png"
 
 export function Layout() {
-  const {logout, user} = useAuth()
-  const initials = user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : ''
-  const isProcessing = useIsFetching({ queryKey: ["messages"], exact: false }) > 0;
+  const { logout, user } = useAuth()
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : ""
+  const isProcessing = useIsFetching({ queryKey: ["messages"], exact: false }) > 0
   return (
     <>
       <header className="bg-white shadow-md sticky top-0 z-50">
@@ -28,13 +35,22 @@ export function Layout() {
                   </Link>
                   <div className="flex items-center gap-3">
                     {user?.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={`${user.name} avatar`} className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-100" />
+                      <img
+                        src={user.avatarUrl}
+                        alt={`${user.name} avatar`}
+                        className="w-9 h-9 rounded-full object-cover ring-2 ring-indigo-100"
+                      />
                     ) : (
                       <div className="w-9 h-9 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-semibold">
                         {initials}
                       </div>
                     )}
-                    <span className="text-gray-700 text-sm">Welcome, <Link to={`/user/${user.id}`}><span className="font-semibold">{user.name}</span></Link></span>
+                    <span className="text-gray-700 text-sm">
+                      Welcome,{" "}
+                      <Link to={`/user/${user.id}`}>
+                        <span className="font-semibold">{user.name}</span>
+                      </Link>
+                    </span>
                   </div>
                   <Link
                     to="/followRequests"
@@ -42,7 +58,7 @@ export function Layout() {
                   >
                     Follow Requests
                   </Link>
-                  <button 
+                  <button
                     onClick={logout}
                     className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
                   >
@@ -55,13 +71,11 @@ export function Layout() {
         </nav>
       </header>
       <main className="min-h-screen bg-gray-50">
-        <Outlet/>
+        <Outlet />
         <footer className="bg-white border-t border-gray-200 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                © 2026 PathHub. All rights reserved.
-              </p>
+              <p className="text-sm text-gray-600">© 2026 PathHub. All rights reserved.</p>
               {isProcessing && (
                 <div className="flex items-center gap-2 text-sm text-indigo-600">
                   <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -73,5 +87,5 @@ export function Layout() {
         </footer>
       </main>
     </>
-  );
+  )
 }

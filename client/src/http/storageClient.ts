@@ -1,6 +1,6 @@
 import { encode, decode } from "cbor-x"
-import { toBufferSource } from "ts-mls/util/byteArray.js";
-import { base64urlToUint8 } from "../remoteStore";
+import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { base64urlToUint8 } from "../remoteStore"
 
 export interface StorageClient {
   putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void>
@@ -15,9 +15,8 @@ export interface StorageClient {
 }
 
 export function createContentClient(baseUrl: string, authToken: string): StorageClient {
-
   async function putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void> {
-    return batchPut([{id: objectId, body, nonce}])
+    return batchPut([{ id: objectId, body, nonce }])
   }
 
   async function batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void> {
@@ -31,7 +30,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     const version = 1
 
     let totalSize = 4 + 2
-    const entries = payloads.map(p => {
+    const entries = payloads.map((p) => {
       const idBytes = base64urlToUint8(p.id)
       const nonceBytes = p.nonce instanceof Uint8Array ? p.nonce : new Uint8Array(p.nonce)
       const bodyBytes = p.body instanceof Uint8Array ? p.body : new Uint8Array(p.body)
@@ -45,18 +44,26 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     const uint8 = new Uint8Array(buffer)
 
     let offset = 0
-    view.setUint32(offset, magic, false); offset += 4
-    view.setUint16(offset, version, false); offset += 2
+    view.setUint32(offset, magic, false)
+    offset += 4
+    view.setUint16(offset, version, false)
+    offset += 2
 
     for (const { idBytes, nonceBytes, bodyBytes } of entries) {
-      view.setUint16(offset, nonceBytes.length, false); offset += 2
-      uint8.set(nonceBytes, offset); offset += nonceBytes.length
+      view.setUint16(offset, nonceBytes.length, false)
+      offset += 2
+      uint8.set(nonceBytes, offset)
+      offset += nonceBytes.length
 
-      view.setUint16(offset, idBytes.length, false); offset += 2
-      uint8.set(idBytes, offset); offset += idBytes.length
+      view.setUint16(offset, idBytes.length, false)
+      offset += 2
+      uint8.set(idBytes, offset)
+      offset += idBytes.length
 
-      view.setBigUint64(offset, BigInt(bodyBytes.length), false); offset += 8
-      uint8.set(bodyBytes, offset); offset += bodyBytes.length
+      view.setBigUint64(offset, BigInt(bodyBytes.length), false)
+      offset += 8
+      uint8.set(bodyBytes, offset)
+      offset += bodyBytes.length
     }
 
     const res = await fetch(`${baseUrl}/content/batch`, {
@@ -82,20 +89,21 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     throw new Error(`Unexpected status ${res.status} on batchPut`)
   }
 
-  async function batchGetContent(objectIds: Uint8Array[]): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
+  async function batchGetContent(
+    objectIds: Uint8Array[],
+  ): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
     const headers = {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
       Authorization: `Bearer ${authToken}`,
     }
 
-
     const res = await fetch(`${baseUrl}/content/batch`, {
       method: "POST",
       headers,
       body: encode(objectIds) as BufferSource,
     })
- 
+
     if (res.status === 200) {
       const arrayBuffer = await res.arrayBuffer()
       return decode(new Uint8Array(arrayBuffer)) as Record<string, { body: Uint8Array; nonce: string }>
@@ -110,7 +118,6 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
         const er = new TextDecoder().decode(errorBody)
         throw new Error(er)
       }
-      
     }
 
     if (res.status === 401) {

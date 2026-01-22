@@ -163,7 +163,9 @@ export async function build(config: {
     return [...res.rows.values()]
   }
 
-  async function getUserByUsername(username: string): Promise<{ username: string; key: Buffer; userid: string } | undefined> {
+  async function getUserByUsername(
+    username: string,
+  ): Promise<{ username: string; key: Buffer; userid: string } | undefined> {
     const res = await fastify.pg.query<{ username: string; key: Buffer; userid: string }>(
       `SELECT  
         username,
@@ -262,7 +264,9 @@ export async function build(config: {
         getPublicUserInfo,
         getUserByUsername,
         saveUser,
-      }).then(() => done()).catch(done)
+      })
+        .then(() => done())
+        .catch(done)
     },
     { prefix: "/auth" },
   )
@@ -274,7 +278,9 @@ export async function build(config: {
         authenticate,
         streamToBuffer,
         shardObjectKey,
-      }).then(() => done()).catch(done)
+      })
+        .then(() => done())
+        .catch(done)
     },
     { prefix: "/content" },
   )
@@ -284,7 +290,9 @@ export async function build(config: {
     (fastify, _opts, done) => {
       registerMessageRoutes(fastify, config, {
         authenticate,
-      }).then(() => done()).catch(done)
+      })
+        .then(() => done())
+        .catch(done)
     },
     { prefix: "/messages" },
   )

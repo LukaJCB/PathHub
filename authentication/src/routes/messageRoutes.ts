@@ -12,7 +12,9 @@ export async function registerMessageRoutes(
     messageTtlSeconds?: number
   },
   helpers: {
-    authenticate: (auth: string | undefined) => Promise<{ status: "ok"; userId: string; username: string } | { status: "error" }>
+    authenticate: (
+      auth: string | undefined,
+    ) => Promise<{ status: "ok"; userId: string; username: string } | { status: "error" }>
   },
 ) {
   const messageTtlSeconds = config.messageTtlSeconds ?? 86400 // Default to 24 hours
@@ -45,40 +47,36 @@ export async function registerMessageRoutes(
     },
   }
 
-  fastify.post<{ Body: SendMessageBody }>(
-    "",
-    sendMessageSchema,
-    async (req, reply) => {
-      const user = await helpers.authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+  fastify.post<{ Body: SendMessageBody }>("", sendMessageSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-      const { payload, recipients } = req.body
+    const { payload, recipients } = req.body
 
-      const messageId = crypto.randomUUID()
-      const expiresAt = new Date(Date.now() + messageTtlSeconds * 1000)
+    const messageId = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + messageTtlSeconds * 1000)
 
-      await fastify.pg.transact(async (client) => {
-        await client.query(`INSERT INTO messages (id, sender_id, payload, expires_at) VALUES ($1, $2, $3, $4)`, [
+    await fastify.pg.transact(async (client) => {
+      await client.query(`INSERT INTO messages (id, sender_id, payload, expires_at) VALUES ($1, $2, $3, $4)`, [
+        messageId,
+        user.userId,
+        Buffer.from(payload),
+        expiresAt,
+      ])
+
+      for (const recipient of recipients) {
+        await client.query(`INSERT INTO message_recipients (message_id, recipient_id) VALUES ($1, $2)`, [
           messageId,
-          user.userId,
-          Buffer.from(payload),
-          expiresAt,
+          recipient,
         ])
+      }
+    })
 
-        for (const recipient of recipients) {
-          await client.query(`INSERT INTO message_recipients (message_id, recipient_id) VALUES ($1, $2)`, [
-            messageId,
-            recipient,
-          ])
-        }
-      })
-
-      return reply
-        .code(201)
-        .type("application/cbor")
-        .send(encode({ id: messageId }))
-    },
-  )
+    return reply
+      .code(201)
+      .type("application/cbor")
+      .send(encode({ id: messageId }))
+  })
 
   const receiveMessagesSchema = {
     schema: {
@@ -102,36 +100,32 @@ export async function registerMessageRoutes(
     },
   }
 
-  fastify.get(
-    "",
-    receiveMessagesSchema,
-    async (req, reply) => {
-      const user = await helpers.authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+  fastify.get("", receiveMessagesSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-      const result = await fastify.pg.query<{
-        id: string
-        sender: string
-        payload: Buffer
-      }>(
-        `
+    const result = await fastify.pg.query<{
+      id: string
+      sender: string
+      payload: Buffer
+    }>(
+      `
       SELECT m.id, m.sender_id as sender, m.payload
       FROM messages m
       JOIN message_recipients r ON r.message_id = m.id
       WHERE r.recipient_id = $1 AND r.received_at IS NULL AND m.expires_at > NOW()
       `,
-        [user.userId],
-      )
+      [user.userId],
+    )
 
-      const messages = result.rows.map((row) => ({
-        id: row.id,
-        sender: row.sender,
-        payload: row.payload,
-      }))
+    const messages = result.rows.map((row) => ({
+      id: row.id,
+      sender: row.sender,
+      payload: row.payload,
+    }))
 
-      return reply.type("application/cbor").send(encode(messages))
-    },
-  )
+    return reply.type("application/cbor").send(encode(messages))
+  })
 
   const ackMessageSchema = {
     schema: {
@@ -167,45 +161,41 @@ export async function registerMessageRoutes(
     },
   }
 
-  fastify.post<{ Body: { messageIds: string[] } }>(
-    "/ack",
-    ackMessageSchema,
-    async (req, reply) => {
-      const user = await helpers.authenticate(req.headers.authorization)
-      if (user.status === "error") return reply.code(401).type("application/cbor").send()
+  fastify.post<{ Body: { messageIds: string[] } }>("/ack", ackMessageSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
 
-      const { messageIds } = req.body
+    const { messageIds } = req.body
 
-      const now = new Date()
+    const now = new Date()
 
-      try {
-        await fastify.pg.transact(async (client) => {
-          for (const msgId of messageIds) {
-            const res = await client.query(
-              `UPDATE message_recipients
+    try {
+      await fastify.pg.transact(async (client) => {
+        for (const msgId of messageIds) {
+          const res = await client.query(
+            `UPDATE message_recipients
               SET received_at = $1
               WHERE message_id = $2 AND recipient_id = $3`,
-              [now, msgId, user.userId],
-            )
+            [now, msgId, user.userId],
+          )
 
-            if (res.rowCount === 0) {
-              throw new AckError(`Not found: ${msgId}`)
-            }
+          if (res.rowCount === 0) {
+            throw new AckError(`Not found: ${msgId}`)
           }
-        })
-
-        return reply.code(204).send()
-      } catch (err) {
-        if (err instanceof AckError) {
-          return reply
-            .code(404)
-            .type("application/cbor")
-            .send(encode({ error: err.message }))
         }
-        throw err
+      })
+
+      return reply.code(204).send()
+    } catch (err) {
+      if (err instanceof AckError) {
+        return reply
+          .code(404)
+          .type("application/cbor")
+          .send(encode({ error: err.message }))
       }
-    },
-  )
+      throw err
+    }
+  })
 }
 
 class AckError extends Error {
@@ -214,4 +204,3 @@ class AckError extends Error {
     this.name = "AckError"
   }
 }
-

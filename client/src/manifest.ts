@@ -1,12 +1,10 @@
-
 //First is the objectId, second is the key
 export type StorageIdentifier = [string, Uint8Array]
-
 
 // use a new manifest every time the master key is rotated
 export interface Manifest {
   postManifest: StorageIdentifier
-  indexes: Uint8Array  // reference to IndexManifest
+  indexes: Uint8Array // reference to IndexManifest
   //todo should group states and follower manifests be combined?
   groupStates: Map<string, Uint8Array> //reference to FollowerGroupState
   followerManifests: Map<string, Uint8Array> //reference to FollowerManifest
@@ -14,18 +12,16 @@ export interface Manifest {
 }
 
 export interface FollowerGroupState {
-  groupState: Uint8Array,
+  groupState: Uint8Array
   cachedInteractions: Map<string, Interaction[]>
 }
-
 
 //for every user you're following you should store their post manifest id&key as well as their current page id&key
 //why do we need both? shouldn't the post manifest be enough?
 export interface FollowerManifest {
-  postManifest: StorageIdentifier,
+  postManifest: StorageIdentifier
   currentPage: StorageIdentifier
 }
-
 
 export interface DerivedMetrics {
   distance: number
@@ -48,7 +44,7 @@ export interface PostMeta {
   likes: StorageIdentifier | undefined
   thumbnail: StorageIdentifier
   media: StorageIdentifier[]
-  type: string | undefined,
+  type: string | undefined
   gear: string | undefined
 }
 
@@ -122,10 +118,9 @@ export interface IndexCollection {
   byGear: Map<number, string[]>
   wordIndex: Map<string, string[]>
   postLocator: Map<string, PostLocatorEntry>
-  typeMap: Map<number, string>  // typeId -> type name
-  gearMap: Map<number, string>  // gearId -> gear name
+  typeMap: Map<number, string> // typeId -> type name
+  gearMap: Map<number, string> // gearId -> gear name
 }
-
 
 export function addDerivedMetrics(a: DerivedMetrics, b: DerivedMetrics): DerivedMetrics {
   return {
@@ -136,5 +131,3 @@ export function addDerivedMetrics(a: DerivedMetrics, b: DerivedMetrics): Derived
 }
 
 // use a new post manifest every time the master key is rotated
-
-

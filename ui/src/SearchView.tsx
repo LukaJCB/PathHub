@@ -63,18 +63,14 @@ export const SearchView: React.FC = () => {
     }
   }, [isReady, user.currentPage, results.length, loading, query, indexes])
 
-
   const sortedResults = useMemo(() => {
     if (!indexes) return results
 
     let sorted: SearchResult[] = []
-    
 
     if (sortBy === "date") {
-
       sorted = [...results].sort((a, b) => a.entry.date - b.entry.date)
     } else if (sortBy === "distance") {
-
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byDistance.length; i++) {
         indexMap.set(indexes.byDistance[i]!.postId, i)
@@ -85,7 +81,6 @@ export const SearchView: React.FC = () => {
         return indexA - indexB
       })
     } else if (sortBy === "elevation") {
-
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byElevation.length; i++) {
         indexMap.set(indexes.byElevation[i]!.postId, i)
@@ -96,7 +91,6 @@ export const SearchView: React.FC = () => {
         return indexA - indexB
       })
     } else if (sortBy === "duration") {
-
       const indexMap = new Map<string, number>()
       for (let i = 0; i < indexes.byDuration.length; i++) {
         indexMap.set(indexes.byDuration[i]!.postId, i)
@@ -111,7 +105,6 @@ export const SearchView: React.FC = () => {
     return sortDirection === "asc" ? sorted : sorted.reverse()
   }, [results, sortBy, sortDirection, indexes])
 
-
   const availableTypes = useMemo(() => {
     if (!indexes) return []
     return Array.from(indexes.typeMap.values()).sort()
@@ -122,15 +115,12 @@ export const SearchView: React.FC = () => {
     return Array.from(indexes.gearMap.values()).sort()
   }, [indexes])
 
-
   const filteredResults = useMemo(() => {
     if (!indexes) return sortedResults
-
 
     if (selectedTypes.size === 0 && selectedGears.size === 0) {
       return sortedResults
     }
-
 
     let typeFilteredIds: Set<string> | null = null
     if (selectedTypes.size > 0) {
@@ -138,7 +128,7 @@ export const SearchView: React.FC = () => {
       for (const [typeId, typeName] of indexes.typeMap) {
         if (selectedTypes.has(typeName)) {
           const postIds = indexes.byType.get(typeId) || []
-          postIds.forEach(id => typeFilteredIds!.add(id))
+          postIds.forEach((id) => typeFilteredIds!.add(id))
         }
       }
     }
@@ -149,7 +139,7 @@ export const SearchView: React.FC = () => {
       for (const [gearId, gearName] of indexes.gearMap) {
         if (selectedGears.has(gearName)) {
           const postIds = indexes.byGear.get(gearId) || []
-          postIds.forEach(id => gearFilteredIds!.add(id))
+          postIds.forEach((id) => gearFilteredIds!.add(id))
         }
       }
     }
@@ -176,7 +166,6 @@ export const SearchView: React.FC = () => {
     setLoading(false)
   }
 
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -196,14 +185,17 @@ export const SearchView: React.FC = () => {
               <input
                 type="search"
                 value={query}
-                onChange={e => setQuery(e.target.value)}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search titles (e.g., sunrise run)"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
               {tokens.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-600">
-                  {tokens.map(token => (
-                    <span key={token} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {tokens.map((token) => (
+                    <span
+                      key={token}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+                    >
                       {token}
                     </span>
                   ))}
@@ -231,9 +223,7 @@ export const SearchView: React.FC = () => {
                 <button
                   onClick={() => setSortBy("date")}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === "date"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    sortBy === "date" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   Date
@@ -241,9 +231,7 @@ export const SearchView: React.FC = () => {
                 <button
                   onClick={() => setSortBy("distance")}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === "distance"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    sortBy === "distance" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   Distance
@@ -251,9 +239,7 @@ export const SearchView: React.FC = () => {
                 <button
                   onClick={() => setSortBy("elevation")}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === "elevation"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    sortBy === "elevation" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   Elevation
@@ -261,9 +247,7 @@ export const SearchView: React.FC = () => {
                 <button
                   onClick={() => setSortBy("duration")}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === "duration"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    sortBy === "duration" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   Duration
@@ -287,7 +271,7 @@ export const SearchView: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
                   <div className="flex flex-wrap gap-2">
-                    {availableTypes.map(type => (
+                    {availableTypes.map((type) => (
                       <button
                         key={type}
                         onClick={() => {
@@ -337,9 +321,9 @@ export const SearchView: React.FC = () => {
                       setSelectedGears(selected)
                     }}
                     className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors hover:border-gray-300"
-                    style={{ minHeight: '120px' }}
+                    style={{ minHeight: "120px" }}
                   >
-                    {availableGears.map(gear => (
+                    {availableGears.map((gear) => (
                       <option key={gear} value={gear} className="py-2">
                         {gear}
                       </option>
@@ -358,57 +342,66 @@ export const SearchView: React.FC = () => {
           )}
 
           {filteredResults.length === 0 && isReady && !loading && results.length > 0 && (
-            <div className="bg-white rounded-2xl p-6 text-gray-500 shadow-sm border border-gray-100">No results match your filters.</div>
+            <div className="bg-white rounded-2xl p-6 text-gray-500 shadow-sm border border-gray-100">
+              No results match your filters.
+            </div>
           )}
 
           {filteredResults.map(({ id, entry }) => {
             const typeName = entry.typeId ? indexes?.typeMap.get(entry.typeId) : undefined
             const gearName = entry.gearId ? indexes?.gearMap.get(entry.gearId) : undefined
             return (
-            <Link
-              key={id}
-              to={`/user/${user.id}/${entry.pageIndex}/${id}`}
-              className="block bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 leading-tight">{entry.title}</h2>
-                  {(gearName || typeName) && (
-                    <div className="flex items-center gap-2 text-sm text-gray-700 mt-2">
-                      {typeName && (
-                        <>
-                          <span>{getPostTypeEmoji(typeName) || "✨"}</span>
-                          <span className="font-medium text-gray-800">{typeName}</span>
-                        </>
-                      )}
+              <Link
+                key={id}
+                to={`/user/${user.id}/${entry.pageIndex}/${id}`}
+                className="block bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 leading-tight">{entry.title}</h2>
+                    {(gearName || typeName) && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700 mt-2">
+                        {typeName && (
+                          <>
+                            <span>{getPostTypeEmoji(typeName) || "✨"}</span>
+                            <span className="font-medium text-gray-800">{typeName}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-500 whitespace-nowrap">
+                    {new Date(entry.date).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-700">
+                  <div className="rounded-lg bg-indigo-50 px-3 py-2">
+                    <div className="text-gray-500">Distance</div>
+                    <div className="font-semibold text-indigo-700">{(entry.metrics.distance / 1000).toFixed(1)} km</div>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 px-3 py-2">
+                    <div className="text-gray-500">Elevation</div>
+                    <div className="font-semibold text-blue-700">{Math.round(entry.metrics.elevation)} m</div>
+                  </div>
+                  <div className="rounded-lg bg-green-50 px-3 py-2">
+                    <div className="text-gray-500">Duration</div>
+                    <div className="font-semibold text-green-700">
+                      {(entry.metrics.duration / 3600000).toFixed(1)} h
                     </div>
-                  )}
-                </div>
-                <span className="text-sm text-gray-500 whitespace-nowrap">{new Date(entry.date).toLocaleDateString()}</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-700">
-                <div className="rounded-lg bg-indigo-50 px-3 py-2">
-                  <div className="text-gray-500">Distance</div>
-                  <div className="font-semibold text-indigo-700">{(entry.metrics.distance / 1000).toFixed(1)} km</div>
-                </div>
-                <div className="rounded-lg bg-blue-50 px-3 py-2">
-                  <div className="text-gray-500">Elevation</div>
-                  <div className="font-semibold text-blue-700">{Math.round(entry.metrics.elevation)} m</div>
-                </div>
-                <div className="rounded-lg bg-green-50 px-3 py-2">
-                  <div className="text-gray-500">Duration</div>
-                  <div className="font-semibold text-green-700">{(entry.metrics.duration / 3600000).toFixed(1)} h</div>
-                </div>
-                <div className="rounded-lg bg-amber-50 px-3 py-2">
-                  <div className="text-gray-500">Gear</div>
-                  <div className="font-semibold text-amber-700 text-xs break-all flex items-center gap-2">
-                    <span role="img" aria-label="gear">{getGearEmoji(typeName)}</span>
-                    <span>{gearName ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 px-3 py-2">
+                    <div className="text-gray-500">Gear</div>
+                    <div className="font-semibold text-amber-700 text-xs break-all flex items-center gap-2">
+                      <span role="img" aria-label="gear">
+                        {getGearEmoji(typeName)}
+                      </span>
+                      <span>{gearName ?? "—"}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          )})}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>

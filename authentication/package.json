@@ -48,6 +48,7 @@
     "start": "pnpm exec tsx src/server.ts",
     "generate-keys": "node ./scripts/generate-keys.mjs",
     "build": "tsc",
+    "typecheck": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "lint": "eslint src/",

@@ -1,5 +1,15 @@
 import { CiphersuiteImpl, createApplicationMessage, ClientState, unsafeTestingAuthenticationService } from "ts-mls"
-import { PostManifestPage, DerivedMetrics, Manifest, PostManifest, PostMeta, StorageIdentifier, addDerivedMetrics, IndexCollection, IndexManifest } from "./manifest"
+import {
+  PostManifestPage,
+  DerivedMetrics,
+  Manifest,
+  PostManifest,
+  PostMeta,
+  StorageIdentifier,
+  addDerivedMetrics,
+  IndexCollection,
+  IndexManifest,
+} from "./manifest"
 import { encode, decode } from "cbor-x"
 import { MessageClient } from "./http/messageClient"
 
@@ -34,10 +44,8 @@ export async function createPost(
   remoteStore: RemoteStore,
   _messageClient: MessageClient,
   impl: CiphersuiteImpl,
-  masterKey: Uint8Array
+  masterKey: Uint8Array,
 ): Promise<[ClientState, PostManifestPage, PostManifest, Manifest]> {
-
-
   const currentPostSecret = await derivePostSecret(mlsGroup, impl)
   const payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }> = []
 
@@ -63,17 +71,20 @@ export async function createPost(
     main: mainAlloc.storageIdentifier,
     comments: undefined,
     likes: undefined,
-    media: mediaAllocs.map(a => a.storageIdentifier),
+    media: mediaAllocs.map((a) => a.storageIdentifier),
     thumbnail: thumbnailAlloc.storageIdentifier,
     type: postType,
-    gear
+    gear,
   }
-
 
   // create MLS message of the post to group
   const msg: Message = { kind: "PostMessage", content: postMeta }
 
-  const createMessageResult = await createApplicationMessage( { state: mlsGroup, message: encode(msg), context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService }})
+  const createMessageResult = await createApplicationMessage({
+    state: mlsGroup,
+    message: encode(msg),
+    context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService },
+  })
 
   let newPage: PostManifestPage
   let newPostManifest: PostManifest
@@ -118,7 +129,10 @@ export async function createPost(
   return [createMessageResult.newState, newPage, newPostManifest, newManifest]
 }
 
-function allocateStorageIdentifier(postSecret: Uint8Array): { objectId: Uint8Array; storageIdentifier: StorageIdentifier } {
+function allocateStorageIdentifier(postSecret: Uint8Array): {
+  objectId: Uint8Array
+  storageIdentifier: StorageIdentifier
+} {
   const objectId = crypto.getRandomValues(new Uint8Array(32))
   return {
     objectId,
@@ -247,13 +261,29 @@ function collectIndexWrites(
   const newIndexManifest: IndexManifest = { ...indexManifest, typeMap: indexes.typeMap, gearMap: indexes.gearMap }
 
   payloads.push(
-    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDistance), content: encode(indexes.byDistance) },
-    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byDuration), content: encode(indexes.byDuration) },
-    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byElevation), content: encode(indexes.byElevation) },
+    {
+      postSecret: masterKey,
+      storageId: base64urlToUint8(indexManifest.byDistance),
+      content: encode(indexes.byDistance),
+    },
+    {
+      postSecret: masterKey,
+      storageId: base64urlToUint8(indexManifest.byDuration),
+      content: encode(indexes.byDuration),
+    },
+    {
+      postSecret: masterKey,
+      storageId: base64urlToUint8(indexManifest.byElevation),
+      content: encode(indexes.byElevation),
+    },
     { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byType), content: encode(indexes.byType) },
     { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.byGear), content: encode(indexes.byGear) },
     { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.wordIndex), content: encode(indexes.wordIndex) },
-    { postSecret: masterKey, storageId: base64urlToUint8(indexManifest.postLocator), content: encode(indexes.postLocator) },
+    {
+      postSecret: masterKey,
+      storageId: base64urlToUint8(indexManifest.postLocator),
+      content: encode(indexes.postLocator),
+    },
     { postSecret: masterKey, storageId: indexManifestId, content: encode(newIndexManifest) },
   )
 }
@@ -261,31 +291,22 @@ function collectIndexWrites(
 async function loadIndexes(
   manifest: Manifest,
   masterKey: Uint8Array,
-  remoteStore: RemoteStore
+  remoteStore: RemoteStore,
 ): Promise<[IndexCollection, IndexManifest]> {
-  
   const decrypted = await retrieveAndDecryptContent(remoteStore, [uint8ToBase64Url(manifest.indexes), masterKey])
-  
+
   const indexManifest = decode(new Uint8Array(decrypted)) as IndexManifest
 
-
-  const [
-    byDistanceData,
-    byDurationData,
-    byElevationData,
-    byTypeData,
-    byGearData,
-    wordIndexData,
-    postLocatorData
-  ] = await Promise.all([
-    retrieveAndDecryptContent(remoteStore, [indexManifest.byDistance, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.byDuration, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.byElevation, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.byType, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.byGear, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.wordIndex, masterKey]),
-    retrieveAndDecryptContent(remoteStore, [indexManifest.postLocator, masterKey])
-  ])
+  const [byDistanceData, byDurationData, byElevationData, byTypeData, byGearData, wordIndexData, postLocatorData] =
+    await Promise.all([
+      retrieveAndDecryptContent(remoteStore, [indexManifest.byDistance, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.byDuration, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.byElevation, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.byType, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.byGear, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.wordIndex, masterKey]),
+      retrieveAndDecryptContent(remoteStore, [indexManifest.postLocator, masterKey]),
+    ])
 
   const collection = {
     byDistance: decode(new Uint8Array(byDistanceData)) as IndexCollection["byDistance"],
@@ -297,12 +318,11 @@ async function loadIndexes(
     postLocator: decode(new Uint8Array(postLocatorData)) as IndexCollection["postLocator"],
     typeMap: indexManifest.typeMap,
     gearMap: indexManifest.gearMap,
-    version: 1
+    version: 1,
   }
 
   return [collection, indexManifest]
 }
-
 
 export async function replaceInPage(
   mlsGroup: ClientState,
@@ -314,25 +334,28 @@ export async function replaceInPage(
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   postMeta: PostMeta,
-  remoteStore: RemoteStore
+  remoteStore: RemoteStore,
 ): Promise<[PostManifestPage, PostManifest, Manifest]> {
-
   const newPage = {
-    posts: page.posts.map(pm => {
+    posts: page.posts.map((pm) => {
       if (pm.main[0] === postMeta.main[0]) {
         return postMeta
       }
       return pm
     }),
-    pageIndex: page.pageIndex
+    pageIndex: page.pageIndex,
   }
-
 
   let newPageId = pageId
 
   const currentPostSecret = await derivePostSecret(mlsGroup, impl)
   if (compareUint8Arrays(currentPostSecret, pageId[1])) {
-    await encryptAndStoreWithPostSecret(currentPostSecret, remoteStore, encodePostManifestPage(newPage), base64urlToUint8(pageId[0]))
+    await encryptAndStoreWithPostSecret(
+      currentPostSecret,
+      remoteStore,
+      encodePostManifestPage(newPage),
+      base64urlToUint8(pageId[0]),
+    )
 
     return [newPage, postManifest, manifest]
   } else {
@@ -367,46 +390,39 @@ export async function replaceInPage(
 
     return [newPage, newPostManifest, finalManifest]
   }
-
-  
-
-  
-  
 }
 
 function replacePage(oldPageId: StorageIdentifier, newPageId: StorageIdentifier, pm: PostManifest): PostManifest {
   if (pm.currentPage[0] === oldPageId[0]) {
-    return {...pm, currentPage: newPageId}
+    return { ...pm, currentPage: newPageId }
   }
 
-  const newPages = pm.pages.map(p => {
+  const newPages = pm.pages.map((p) => {
     if (p.page[0] === oldPageId[0]) {
       return { usedUntil: p.usedUntil, page: newPageId }
     }
     return p
   })
 
-  return {...pm, pages: newPages}
+  return { ...pm, pages: newPages }
 }
 
-//PostManifestPage -> postManifestIndex -> [PostManifestPage] 
+//PostManifestPage -> postManifestIndex -> [PostManifestPage]
 
-
-export async function encryptAndStoreWithPostSecret(postSecret: Uint8Array, remoteStore: RemoteStore, content: Uint8Array, storageId: Uint8Array): Promise<void> {
+export async function encryptAndStoreWithPostSecret(
+  postSecret: Uint8Array,
+  remoteStore: RemoteStore,
+  content: Uint8Array,
+  storageId: Uint8Array,
+): Promise<void> {
   const key = await importAesKey(postSecret)
 
   const nonce = crypto.getRandomValues(new Uint8Array(12))
 
-  const encryptedContent = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
-    key,
-    toBufferSource(content),
-  )
-
+  const encryptedContent = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, toBufferSource(content))
 
   // store encrypted content remotely
   await remoteStore.storeContent(storageId, new Uint8Array(encryptedContent), nonce)
- 
 }
 
 export async function batchEncryptAndStoreWithSecrets(
@@ -425,11 +441,7 @@ export async function batchEncryptAndStoreWithSecrets(
       }
 
       const nonce = crypto.getRandomValues(new Uint8Array(12))
-      const encryptedContent = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: nonce },
-        key,
-        toBufferSource(content),
-      )
+      const encryptedContent = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, toBufferSource(content))
 
       return { id: storageId, content: new Uint8Array(encryptedContent), nonce }
     }),
@@ -438,39 +450,48 @@ export async function batchEncryptAndStoreWithSecrets(
   await remoteStore.batchStoreContent(encryptedPayloads)
 }
 
-export async function encryptAndStore(mlsGroup: ClientState, impl: CiphersuiteImpl, remoteStore: RemoteStore, content: Uint8Array, objectId?: Uint8Array): Promise<[string, Uint8Array]> {
+export async function encryptAndStore(
+  mlsGroup: ClientState,
+  impl: CiphersuiteImpl,
+  remoteStore: RemoteStore,
+  content: Uint8Array,
+  objectId?: Uint8Array,
+): Promise<[string, Uint8Array]> {
   const { key, postSecret } = await deriveKeys(mlsGroup, impl)
 
   const nonce = crypto.getRandomValues(new Uint8Array(12))
 
-
-
-  const encryptedContent = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
-    key,
-    toBufferSource(content),
-  )
-
+  const encryptedContent = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, toBufferSource(content))
 
   // store encrypted content remotely
-  const storageId = await remoteStore.storeContent(objectId ?? crypto.getRandomValues(new Uint8Array(32)), new Uint8Array(encryptedContent), nonce)
-
+  const storageId = await remoteStore.storeContent(
+    objectId ?? crypto.getRandomValues(new Uint8Array(32)),
+    new Uint8Array(encryptedContent),
+    nonce,
+  )
 
   return [storageId, postSecret] as const
- 
 }
 
-export async function deriveKeys(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<{ key: CryptoKey; postSecret: Uint8Array}> {
+export async function deriveKeys(
+  mlsGroup: ClientState,
+  impl: CiphersuiteImpl,
+): Promise<{ key: CryptoKey; postSecret: Uint8Array }> {
   const postSecret = await derivePostSecret(mlsGroup, impl)
 
-  const key  = await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"])
+  const key = await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ])
 
-  return {key, postSecret}
+  return { key, postSecret }
 }
 
 export async function importAesKey(postSecret: Uint8Array) {
-  return await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"])
-
+  return await crypto.subtle.importKey("raw", toBufferSource(postSecret), { name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ])
 }
 
 export async function derivePostSecret(mlsGroup: ClientState, impl: CiphersuiteImpl): Promise<Uint8Array> {
@@ -478,17 +499,15 @@ export async function derivePostSecret(mlsGroup: ClientState, impl: CiphersuiteI
 }
 
 function compareUint8Arrays(arr1: Uint8Array, arr2: Uint8Array): boolean {
-    if (arr1.length !== arr2.length) {
-        return false;
-    }
+  if (arr1.length !== arr2.length) {
+    return false
+  }
 
-    for (let i = 0; i < arr1.length; i++) {
-        if (arr1[i] !== arr2[i]) {
-            return false; 
-        }
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) {
+      return false
     }
+  }
 
-    return true;
+  return true
 }
-
-

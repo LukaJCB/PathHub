@@ -1,12 +1,15 @@
 import * as opaque from "@serenity-kit/opaque"
 import { createAuthenticationClient } from "./http/authenticationClient.js"
 import { scryptAsync } from "@noble/hashes/scrypt"
-import { base64ToBytes, toBufferSource } from "ts-mls/util/byteArray.js";
+import { base64ToBytes, toBufferSource } from "ts-mls/util/byteArray.js"
 
 export interface AuthenticationClient {
   register(input: { username: string; password: string }): Promise<{ userId: string }>
 
-  login(input: { username: string; password: string }): Promise<{ token: string; manifest: string; masterKey: Uint8Array }>
+  login(input: {
+    username: string
+    password: string
+  }): Promise<{ token: string; manifest: string; masterKey: Uint8Array }>
 }
 
 async function generateMasterKeyRecoveryKeyPair() {
@@ -101,15 +104,23 @@ async function encryptMasterKeyPassword(masterKey: CryptoKey, password: string):
   return { passwordEncryptedMasterKey, passwordMasterKeyNonce, salt }
 }
 
-async function decryptMasterKeyPassword(encryptedMasterKey: Uint8Array, password: string, salt: Uint8Array, masterKeyNonce: Uint8Array): Promise<Uint8Array> {
+async function decryptMasterKeyPassword(
+  encryptedMasterKey: Uint8Array,
+  password: string,
+  salt: Uint8Array,
+  masterKeyNonce: Uint8Array,
+): Promise<Uint8Array> {
+  const key = await scryptAsync(password, salt, scryptConfig)
+  const imported = await crypto.subtle.importKey("raw", toBufferSource(key), "AES-GCM", true, ["decrypt"])
 
-  const key = await scryptAsync(password, salt, scryptConfig);
-  const imported = await crypto.subtle.importKey("raw", toBufferSource(key), "AES-GCM", true, ['decrypt'])
-
-
-  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toBufferSource(masterKeyNonce), additionalData: masterKeyPasswordAad }, imported, toBufferSource(encryptedMasterKey)))
+  return new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: toBufferSource(masterKeyNonce), additionalData: masterKeyPasswordAad },
+      imported,
+      toBufferSource(encryptedMasterKey),
+    ),
+  )
 }
-
 
 type PrivateKeyBundle = {
   signingKey: CryptoKey
@@ -121,67 +132,64 @@ export function createAuthClient(baseUrl: string): AuthenticationClient {
   const client = createAuthenticationClient(baseUrl)
 
   return {
-  async register({ username, password }) {
-    const { masterKey, recoveryKey } = await generateMasterKeyRecoveryKeyPair();
+    async register({ username, password }) {
+      const { masterKey, recoveryKey } = await generateMasterKeyRecoveryKeyPair()
 
-    const signKeyPair = await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"]);
+      const signKeyPair = await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"])
 
-    const exportedSignaturePublicKey = await crypto.subtle.exportKey("raw", signKeyPair.publicKey);
+      const exportedSignaturePublicKey = await crypto.subtle.exportKey("raw", signKeyPair.publicKey)
 
-    const encryptedKeys = await encryptKeys(recoveryKey, masterKey);
+      const encryptedKeys = await encryptKeys(recoveryKey, masterKey)
 
-    const passwordSetupResult = await encryptMasterKeyPassword(masterKey, password);
+      const passwordSetupResult = await encryptMasterKeyPassword(masterKey, password)
 
-    const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password });
+      const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
 
-    const startRegistrationResult = await client.startRegistration({ username, registrationRequest });
+      const startRegistrationResult = await client.startRegistration({ username, registrationRequest })
 
-    const { registrationRecord } = opaque.client.finishRegistration({
-      registrationResponse: startRegistrationResult.response,
-      clientRegistrationState,
-      password,
-    });
+      const { registrationRecord } = opaque.client.finishRegistration({
+        registrationResponse: startRegistrationResult.response,
+        clientRegistrationState,
+        password,
+      })
 
-    const result = await client.finishRegistration({
-      ...encryptedKeys,
-      ...passwordSetupResult,
-      signingPublicKey: new Uint8Array(exportedSignaturePublicKey),
-      username,
-      registrationRecord,
-    });
+      const result = await client.finishRegistration({
+        ...encryptedKeys,
+        ...passwordSetupResult,
+        signingPublicKey: new Uint8Array(exportedSignaturePublicKey),
+        username,
+        registrationRecord,
+      })
 
-    const privateKeyBundle: PrivateKeyBundle = {
-      signingKey: signKeyPair.privateKey,
-      masterKey,
-      recoveryKey,
-    };
+      const privateKeyBundle: PrivateKeyBundle = {
+        signingKey: signKeyPair.privateKey,
+        masterKey,
+        recoveryKey,
+      }
 
-    return { status: "ok", userId: result.userId, privateKeyBundle };
-  },
+      return { status: "ok", userId: result.userId, privateKeyBundle }
+    },
 
-  async login({ username, password }) {
+    async login({ username, password }) {
+      const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password })
 
-    const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password });
+      const startLoginResult = await client.startLogin({ username, startLoginRequest })
 
-    const startLoginResult = await client.startLogin({ username, startLoginRequest });
+      const { finishLoginRequest } = opaque.client.finishLogin({
+        loginResponse: startLoginResult.response,
+        clientLoginState,
+        password,
+      })!
 
+      const resp = await client.finishLogin({ username, finishLoginRequest })
 
-    const { finishLoginRequest } = opaque.client.finishLogin({
-      loginResponse: startLoginResult.response,
-      clientLoginState,
-      password,
-    })!;
-
-    const resp = await client.finishLogin({ username, finishLoginRequest });
-
-    const masterKey = await decryptMasterKeyPassword(resp.encryptedMasterKey, password, resp.salt, resp.nonce);
-    return { token: resp.token, manifest: resp.manifest, masterKey };
+      const masterKey = await decryptMasterKeyPassword(resp.encryptedMasterKey, password, resp.salt, resp.nonce)
+      return { token: resp.token, manifest: resp.manifest, masterKey }
+    },
   }
 }
-}
 
-
-export function parseToken(token: string): { userId: string, expires: number, username: string } {
+export function parseToken(token: string): { userId: string; expires: number; username: string } {
   const decoded = base64ToBytes(token.split(".").at(1)!)
   const parsed: unknown = JSON.parse(new TextDecoder().decode(decoded))
 

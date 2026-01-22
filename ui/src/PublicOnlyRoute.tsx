@@ -1,21 +1,21 @@
-import { Navigate } from "react-router";
-import { useAuth } from "./useAuth.js";
-import { JSX } from "react";
+import { Navigate } from "react-router"
+import { useAuth } from "./useAuth.js"
+import { JSX } from "react"
 
 interface PublicOnlyRouteProps {
-  children: JSX.Element;
+  children: JSX.Element
 }
 
 export function PublicOnlyRoute({ children }: PublicOnlyRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuth()
 
   if (loading) {
-    return <>loading...</>;
+    return <>loading...</>
   }
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" replace />
   }
 
-  return children;
+  return children
 }

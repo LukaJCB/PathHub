@@ -99,18 +99,15 @@ describe("/userInfo endpoint", () => {
   const serverSecret = opaque.server.createSetup()
   let privateKey: CryptoKey
   let publicKey: CryptoKey
-  
 
   const username1 = `user1-${Date.now()}@example.com`
   const signingPublicKey1 = new Uint8Array([1, 2, 3, 4, 5])
   let userId1: string
   let token1: string
 
-
   const username2 = `user2-${Date.now()}@example.com`
   const signingPublicKey2 = new Uint8Array([6, 7, 8, 9, 10])
   let userId2: string
-
 
   const username3 = `user3-${Date.now()}@example.com`
   const signingPublicKey3 = new Uint8Array([11, 12, 13, 14, 15])
@@ -138,11 +135,9 @@ describe("/userInfo endpoint", () => {
       bucketNamePublic: "test-bucket-public",
     })
 
-
     const user1Id = await registerUser(app, username1, signingPublicKey1)
     userId1 = user1Id
     token1 = await loginUser(app, username1)
-
 
     userId2 = await registerUser(app, username2, signingPublicKey2)
 
@@ -318,7 +313,7 @@ describe("/userInfo endpoint", () => {
 
     expect(Array.isArray(result)).toBe(true)
     expect(result.length).toBe(1)
-    
+
     const user2Info = result[0]
     expect(user2Info.userid).toBe(userId2)
     expect(user2Info.username).toBe(username2)
@@ -331,7 +326,7 @@ describe("/lookupUser endpoint", () => {
   const serverSecret = opaque.server.createSetup()
   let privateKey: CryptoKey
   let publicKey: CryptoKey
-  
+
   const username1 = `lookup-user1-${Date.now()}@example.com`
   const signingPublicKey1 = new Uint8Array([20, 21, 22, 23, 24])
   let userId1: string

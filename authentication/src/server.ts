@@ -55,17 +55,20 @@ const start = async () => {
   })
 
   try {
-    await Promise.all([s3.send(
-      new CreateBucketCommand({
-        Bucket: bucketName,
-      }),
-    ), s3.send(
-      new CreateBucketCommand({
-        Bucket: bucketNamePublic,
-      }),
-    )])
-  } catch (e: any) {
-    if (e.name !== "BucketAlreadyOwnedByYou") {
+    await Promise.all([
+      s3.send(
+        new CreateBucketCommand({
+          Bucket: bucketName,
+        }),
+      ),
+      s3.send(
+        new CreateBucketCommand({
+          Bucket: bucketNamePublic,
+        }),
+      ),
+    ])
+  } catch (e) {
+    if (e instanceof Error && e.name !== "BucketAlreadyOwnedByYou") {
       throw e
     }
   }

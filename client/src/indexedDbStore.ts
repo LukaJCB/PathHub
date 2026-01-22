@@ -3,7 +3,6 @@ import { bytesToBase64, KeyPackage, PrivateKeyPackage } from "ts-mls"
 import { PostManifestPage } from "./manifest"
 import { LocalStore } from "./localStore"
 
-
 interface Schema extends DBSchema {
   followRequests: {
     key: string
@@ -23,11 +22,11 @@ interface Schema extends DBSchema {
   groupStates: {
     key: string
     value: string
-  },
+  }
   content: {
-    key: string,
+    key: string
     value: {
-      content: Uint8Array,
+      content: Uint8Array
       nonce: Uint8Array
     }
   }
@@ -60,9 +59,11 @@ export async function makeStore(userid: string): Promise<LocalStore> {
       await db.put("groupStates", "", bytesToBase64(state.groupContext.groupId))
     },
     async getGroupState(groupId) {
-      const state =  await db.get("groupStates", groupId)
-      
-      if (state) { return undefined }
+      const state = await db.get("groupStates", groupId)
+
+      if (state) {
+        return undefined
+      }
     },
     async getContent(storageId) {
       return await db.get("content", storageId)
@@ -72,14 +73,16 @@ export async function makeStore(userid: string): Promise<LocalStore> {
       return a?.manifest
     },
     async storeContent(content, nonce) {
-      const storageId = uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32)))  //todo use hash?
-      await db.put("content", { content, nonce}, storageId)
+      const storageId = uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(32))) //todo use hash?
+      await db.put("content", { content, nonce }, storageId)
       return storageId
     },
   }
 }
 
-
 function uint8ToBase64Url(u8: Uint8Array) {
-  return btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(String.fromCharCode(...u8))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
