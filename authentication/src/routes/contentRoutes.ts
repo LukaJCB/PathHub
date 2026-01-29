@@ -2,6 +2,7 @@ import Fastify from "fastify"
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import { encode } from "cbor-x"
+import { randomBytes } from "crypto"
 
 export async function registerContentRoutes(
   fastify: Fastify.FastifyInstance,
@@ -46,6 +47,9 @@ export async function registerContentRoutes(
         403: {
           type: "object",
         },
+        412: {
+          type: "object",
+        },
         400: {
           type: "object",
           properties: {
@@ -80,88 +84,122 @@ export async function registerContentRoutes(
 
     const magic = buffer.readUInt32BE(offset)
     offset += 4
-    const version = buffer.readUInt16BE(offset)
+    const protocolVersion = buffer.readUInt16BE(offset)
     offset += 2
 
     if (magic !== 0xdaab0000) {
       return reply.code(400).send(encode({ error: "Invalid magic bytes" }))
     }
 
-    if (version !== 1) {
-      return reply.code(400).send(encode({ error: `Unsupported version: ${version}` }))
+    if (protocolVersion !== 1) {
+      return reply.code(400).send(encode({ error: `Unsupported version: ${protocolVersion}` }))
     }
 
     try {
+      const uploads: Array<{ objectId: string; storageId: string; nonce: string; version: bigint; blob: Buffer }> = []
+
       while (offset < buffer.length) {
-        if (offset + 2 > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated nonce length" }))
-        }
+        if (offset + 2 > buffer.length) return reply.code(400).send(encode({ error: "Truncated nonce length" }))
         const nonceLen = buffer.readUInt16BE(offset)
         offset += 2
-
-        if (offset + nonceLen > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated nonce" }))
-        }
+        if (offset + nonceLen > buffer.length) return reply.code(400).send(encode({ error: "Truncated nonce" }))
         const nonce = buffer.subarray(offset, offset + nonceLen).toString("base64url")
         offset += nonceLen
 
-        if (offset + 2 > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated ID length" }))
-        }
+        if (offset + 2 > buffer.length) return reply.code(400).send(encode({ error: "Truncated ID length" }))
         const idLen = buffer.readUInt16BE(offset)
         offset += 2
-
-        if (offset + idLen > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated ID" }))
-        }
+        if (offset + idLen > buffer.length) return reply.code(400).send(encode({ error: "Truncated ID" }))
         const objectId = buffer.subarray(offset, offset + idLen).toString("base64url")
         offset += idLen
 
-        if (offset + 8 > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated blob length" }))
-        }
-        const blobLen = Number(buffer.readBigUInt64BE(offset))
+        if (offset + 8 > buffer.length) return reply.code(400).send(encode({ error: "Truncated version" }))
+        const version = buffer.readBigUInt64BE(offset)
         offset += 8
 
-        if (offset + blobLen > buffer.length) {
-          return reply.code(400).send(encode({ error: "Truncated blob" }))
-        }
+        if (offset + 8 > buffer.length) return reply.code(400).send(encode({ error: "Truncated blob length" }))
+        const blobLen = Number(buffer.readBigUInt64BE(offset))
+        offset += 8
+        if (offset + blobLen > buffer.length) return reply.code(400).send(encode({ error: "Truncated blob" }))
         const blob = buffer.subarray(offset, offset + blobLen)
         offset += blobLen
 
-        // Check ownership and upload
-        const key = helpers.shardObjectKey(objectId)
-
-        try {
-          const head = await s3.send(
-            new HeadObjectCommand({
-              Bucket: config.bucketName,
-              Key: key,
-            }),
-          )
-
-          const owner = head.Metadata?.["userid"]
-          if (owner && owner !== user.userId) {
-            return reply.code(403).send(encode({ error: "This object is restricted" }))
-          }
-        } catch (err) {
-          if (isErrorWithName(err) && err.name !== "NotFound") {
-            throw err
-          }
-        }
-
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: config.bucketName,
-            Key: key,
-            Body: blob,
-            ContentType: "application/octet-stream",
-            Metadata: { nonce: nonce, userId: user.userId },
-          }),
-        )
+        const storageId = randomBytes(32).toString("base64url")
+        uploads.push({ objectId, storageId, nonce, version, blob })
       }
 
-      return reply.code(204).send()
+      if (uploads.length > 0) {
+        for (const { storageId, nonce, blob } of uploads) {
+          const key = helpers.shardObjectKey(storageId)
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: config.bucketName,
+              Key: key,
+              Body: blob,
+              ContentType: "application/octet-stream",
+              Metadata: { nonce, userId: user.userId },
+            }),
+          )
+        }
+
+        const client = await fastify.pg.connect()
+        let isErr: { code: 403; objectId: string } | { code: 412; version: bigint; objectId: string } | null = null
+        try {
+          await client.query("BEGIN")
+          
+
+          for (const u of uploads) {
+            if (u.objectId === "p2vO4Re-VdaqeN_H33UWP9AUHOLuKwD9E1yZjljbeIE") {
+              console.log(u)
+              console.log(user)
+            }
+            const result = await client.query(
+              `INSERT INTO content_pointers (user_id, object_id, storage_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (object_id) DO UPDATE
+                SET storage_id = EXCLUDED.storage_id,
+                    version = content_pointers.version + 1
+                WHERE content_pointers.version = $4
+                  AND content_pointers.user_id = EXCLUDED.user_id;`,
+              [user.userId, u.objectId, u.storageId, u.version],
+            )
+            if (result.rowCount !== 1) {
+              console.log(result.rowCount)
+              const existsRes = await client.query<{ version: bigint; user_id: string }>(
+                `SELECT version, user_id FROM content_pointers WHERE object_id = $1`,
+                [u.objectId],
+              )
+              
+
+              await client.query("ROLLBACK")
+              const resultRow = existsRes.rows[0]!
+              console.log(resultRow)
+              if (resultRow.user_id !== user.userId) {
+                isErr = { code: 403, objectId: u.objectId }
+              } else if (resultRow.version !== u.version) {
+                isErr = { code: 412, objectId: u.objectId, version: BigInt(resultRow.version) }
+              }
+              break
+            }
+          }
+          await client.query("COMMIT")
+        } catch (err) {
+          await client.query("ROLLBACK")
+          throw err
+        } finally {
+          client.release()
+        }
+
+        if (isErr?.code === 403) {
+          return reply.code(403).send()
+        } else if (isErr?.code === 412) {
+          return reply.code(412).send(encode(isErr))
+        }
+
+        return reply.code(204).send()
+      } else {
+        return reply.code(400).send()
+      }
     } catch (err) {
       console.error(err)
       return reply.code(500).send(encode({ error: "Internal server error" }))
@@ -218,8 +256,49 @@ export async function registerContentRoutes(
     const objectIdStrings = input.map((id) => Buffer.from(id).toString("base64url"))
 
     try {
+      const lookupRes = await fastify.pg.query<{ object_id: string; storage_id: string; version: bigint }>(
+        `SELECT cp.object_id, cp.storage_id, cp.version
+          FROM content_pointers cp
+          LEFT JOIN follows f ON f.followee_id = cp.user_id
+          WHERE (f.follower_id = $1 OR cp.user_id = $1)
+            AND cp.object_id = ANY($2::TEXT[]);`,
+        [user.userId, objectIdStrings],
+      )
+
+      if (lookupRes.rowCount !== objectIdStrings.length) {
+        const foundIds = new Set(lookupRes.rows.map((r) => r.object_id))
+        const notFound = objectIdStrings.filter((o) => !foundIds.has(o))
+
+        const x = await fastify.pg.query<{ object_id: string; storage_id: string; version: bigint }>(
+          `SELECT *
+            FROM content_pointers cp
+            LEFT JOIN follows f ON f.followee_id = cp.user_id
+            WHERE cp.object_id = ANY($1::TEXT[]);`,
+          [objectIdStrings],
+        )
+
+        reply
+          .code(404)
+          .type("application/cbor")
+          .send(encode({ error: `Missing objectIds: ${notFound}` }))
+      }
+
+      const rowsByObjectId = new Map<string, { storageId: string; version: bigint }>()
+      for (const row of lookupRes.rows) {
+        rowsByObjectId.set(row.object_id, { storageId: row.storage_id, version: BigInt(row.version) })
+      }
+
+      for (const objectId of objectIdStrings) {
+        if (!rowsByObjectId.has(objectId)) {
+          throw new FetchError(objectId)
+        }
+      }
+
       const fetches = objectIdStrings.map(async (objectId) => {
-        const key = helpers.shardObjectKey(objectId)
+        const { storageId, version } = rowsByObjectId.get(objectId)!
+
+        const key = helpers.shardObjectKey(storageId)
+
         try {
           const obj = await s3.send(
             new GetObjectCommand({
@@ -230,9 +309,10 @@ export async function registerContentRoutes(
 
           const body = await helpers.streamToBuffer(obj.Body as Readable)
           const nonce = obj.Metadata!["nonce"]!
-          return { objectId, nonce, body }
+          return { objectId, nonce, body, version }
         } catch (err) {
           if (isErrorWithName(err) && err.name === "NoSuchKey") {
+
             throw new FetchError(objectId)
           }
           throw err
@@ -241,9 +321,9 @@ export async function registerContentRoutes(
 
       const results = await Promise.all(fetches)
 
-      const responseMap: Record<string, { body: Buffer; nonce: string }> = {}
-      for (const { objectId, body, nonce } of results) {
-        responseMap[objectId] = { body, nonce }
+      const responseMap: Record<string, { body: Buffer; nonce: string; version: bigint }> = {}
+      for (const { objectId, body, nonce, version } of results) {
+        responseMap[objectId] = { body, nonce, version }
       }
 
       return reply.code(200).type("application/cbor").send(encode(responseMap))

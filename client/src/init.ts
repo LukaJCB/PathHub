@@ -24,6 +24,8 @@ import {
   FollowerGroupState,
   IndexManifest,
   IndexCollection,
+  Versioned,
+  StorageIdentifier,
 } from "./manifest"
 import {
   base64urlToUint8,
@@ -110,7 +112,9 @@ export async function getOrCreateManifest(
   manifestId: string,
   masterKey: Uint8Array,
   rs: RemoteStore,
-): Promise<[Manifest, PostManifest, PostManifestPage, ClientState, SignatureKeyPair]> {
+): Promise<
+  [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, Versioned<ClientState>, SignatureKeyPair]
+> {
   const y = await retrieveAndDecryptManifest(rs, manifestId, masterKey)
   if (y) {
     const [[postManifest, page], followerGroupState] = await Promise.all([
@@ -120,11 +124,18 @@ export async function getOrCreateManifest(
 
     const groupState = decode(clientStateDecoder, followerGroupState!.groupState)!
 
-    return [y, postManifest!, page!, groupState, getKeyPairFromGroupState(groupState)]
+    return [
+      y,
+      postManifest!,
+      page!,
+      { ...groupState, version: followerGroupState!.version },
+      getKeyPairFromGroupState(groupState),
+    ]
   } else {
-    const page: PostManifestPage = {
+    const page: Versioned<PostManifestPage> = {
       pageIndex: 0,
       posts: [],
+      version: 0n,
     }
 
     const [groupState, keyPair] = await initGroupState(userId)
@@ -155,18 +166,54 @@ export async function getOrCreateManifest(
     )
 
     payloads.push(
-      { postSecret: masterKey, storageId: gmStorageId, content: encodeFollowerGroupState(followerGroupState) },
-      { postSecret: masterKey, storageId: frStorageId, content: encodeFollowRequests({ incoming: [], outgoing: [] }) },
+      {
+        postSecret: masterKey,
+        storageId: gmStorageId,
+        content: encodeFollowerGroupState(followerGroupState),
+        version: 0n,
+      },
+      {
+        postSecret: masterKey,
+        storageId: frStorageId,
+        content: encodeFollowRequests({ incoming: [], outgoing: [] }),
+        version: 0n,
+      },
     )
 
     await Promise.all([rs.client.putAvatar(avatar, "image/svg+xml"), batchEncryptAndStoreWithSecrets(rs, payloads)])
 
-    return [manifest, postManifest, page, groupState, keyPair]
+    return [manifest, postManifest, page, { ...groupState, version: 0n }, keyPair]
   }
 }
 
 export async function getGroupStateIdFromManifest(y: Manifest, userId: string): Promise<Uint8Array> {
   return y.groupStates.get(uint8ToBase64Url(await deriveGroupIdFromUserId(userId)))!
+}
+
+interface Payload { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }
+
+export function newVersion<T>(t: T, id: StorageIdentifier, enc: (t: T) => Uint8Array): [Payload, Versioned<T>] {
+
+  const payload = {
+    postSecret: id[1],
+    storageId: base64urlToUint8(id[0]),
+    content: enc(t),
+    version: 0n,
+  }
+
+  return [payload, {...t, version: 1n}]
+}
+
+export function updateWithVersion<T>(old: Versioned<T>, updated: T, id: StorageIdentifier, enc: (t: T) => Uint8Array): [Payload, Versioned<T>] {
+  const newVersion = old.version + 1n
+  const payload = {
+    postSecret: id[1],
+    storageId: base64urlToUint8(id[0]),
+    content: enc(updated),
+    version: old.version + 1n,
+  }
+
+  return [payload, {...updated, version: newVersion}]
 }
 
 async function initManifest(
@@ -177,27 +224,39 @@ async function initManifest(
   frStorageId: Uint8Array,
   masterKey: Uint8Array,
   manifestId: string,
-): Promise<[Manifest, PostManifest, { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }[]]> {
-  const payloads: { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }[] = []
+): Promise<
+  [
+    Versioned<Manifest>,
+    Versioned<PostManifest>,
+    { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }[],
+  ]
+> {
+  const payloads: { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }[] = []
   const [pm, pmStorage] = await initPostManifest(groupState, impl, page, payloads)
   const indexesStorage = await initIndexManifest(masterKey, payloads)
 
-  const manifest: Manifest = {
+  const manifest: Versioned<Manifest> = {
     postManifest: pmStorage,
     indexes: indexesStorage,
     groupStates: new Map([[uint8ToBase64Url(groupState.groupContext.groupId), gmStorageId] as const]),
     followerManifests: new Map(),
     followRequests: frStorageId,
+    version: 1n,
   }
 
-  payloads.push({ postSecret: masterKey, storageId: base64urlToUint8(manifestId), content: encodeManifest(manifest) })
+  payloads.push({
+    postSecret: masterKey,
+    storageId: base64urlToUint8(manifestId),
+    content: encodeManifest(manifest),
+    version: 0n,
+  })
 
   return [manifest, pm, payloads]
 }
 
 async function initIndexManifest(
   masterKey: Uint8Array,
-  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }>,
 ): Promise<Uint8Array> {
   const emptyIndexes: IndexCollection = {
     byDistance: [],
@@ -237,38 +296,45 @@ async function initIndexManifest(
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.byDistance),
       content: cborEncode(emptyIndexes.byDistance),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.byDuration),
       content: cborEncode(emptyIndexes.byDuration),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.byElevation),
       content: cborEncode(emptyIndexes.byElevation),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.byType),
       content: cborEncode(emptyIndexes.byType),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.byGear),
       content: cborEncode(emptyIndexes.byGear),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.wordIndex),
       content: cborEncode(emptyIndexes.wordIndex),
+      version: 0n,
     },
     {
       postSecret: masterKey,
       storageId: base64urlToUint8(indexManifest.postLocator),
       content: cborEncode(emptyIndexes.postLocator),
+      version: 0n,
     },
-    { postSecret: masterKey, storageId: indexManifestId, content: cborEncode(newIndexManifest) },
+    { postSecret: masterKey, storageId: indexManifestId, content: cborEncode(newIndexManifest), version: 0n },
   )
 
   return indexManifestId
@@ -278,16 +344,16 @@ async function initPostManifest(
   groupState: ClientState,
   impl: CiphersuiteImpl,
   page: PostManifestPage,
-  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array }>,
-): Promise<[PostManifest, [string, Uint8Array]]> {
+  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }>,
+): Promise<[Versioned<PostManifest>, [string, Uint8Array]]> {
   const postSecret = await derivePostSecret(groupState, impl)
 
   const pageObjectId = crypto.getRandomValues(new Uint8Array(32))
   const pageStorage: [string, Uint8Array] = [uint8ToBase64Url(pageObjectId), postSecret]
 
-  payloads.push({ postSecret, storageId: pageObjectId, content: encodePostManifestPage(page) })
+  payloads.push({ postSecret, storageId: pageObjectId, content: encodePostManifestPage(page), version: 0n })
 
-  const postManifest: PostManifest = {
+  const postManifest: Versioned<PostManifest> = {
     pages: [],
     currentPage: pageStorage,
     totals: {
@@ -298,12 +364,13 @@ async function initPostManifest(
         duration: 0,
       },
     },
+    version: 1n,
   }
 
   const postManifestObjectId = crypto.getRandomValues(new Uint8Array(32))
   const postManifestStorage: [string, Uint8Array] = [uint8ToBase64Url(postManifestObjectId), postSecret]
 
-  payloads.push({ postSecret, storageId: postManifestObjectId, content: encodePostManifest(postManifest) })
+  payloads.push({ postSecret, storageId: postManifestObjectId, content: encodePostManifest(postManifest), version: 0n })
 
   return [postManifest, postManifestStorage] as const
 }
@@ -311,7 +378,7 @@ async function initPostManifest(
 async function retrievePostManifestAndPage(
   rs: RemoteStore,
   y: Manifest,
-): Promise<[PostManifest | undefined, PostManifestPage | undefined]> {
+): Promise<[Versioned<PostManifest> | undefined, Versioned<PostManifestPage> | undefined]> {
   const postManifest = await retrieveAndDecryptPostManifest(rs, y.postManifest)
   const page = await retrieveAndDecryptPostManifestPage(rs, postManifest!.currentPage)
   return [postManifest, page]

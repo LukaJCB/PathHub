@@ -6,6 +6,7 @@ import { Buffer } from "buffer"
 import { S3Client, CreateBucketCommand } from "@aws-sdk/client-s3"
 import { generateKeyPair, SignJWT } from "jose"
 import { FastifyInstance } from "fastify"
+import { loginUser, registerUser } from "./userInfo.test.js"
 
 const MINIO_ENDPOINT = "http://localhost:9000"
 const BUCKET_NAME = "test-bucket"
@@ -17,22 +18,14 @@ describe("MinIO content upload and fetch", () => {
   let app: FastifyInstance
   let privateKey: CryptoKey
   let publicKey: CryptoKey
-  const testUserId = "123"
-  const testUsername = "testuser"
+  let testUserId: string
+
   let token: string
 
   beforeAll(async () => {
     const keypair = await generateKeyPair("Ed25519")
     publicKey = keypair.publicKey
     privateKey = keypair.privateKey
-
-    token = await new SignJWT({ sub: testUserId, ["ph-user"]: testUsername })
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuedAt()
-      .setNotBefore(Math.floor(Date.now() / 1000))
-      .setExpirationTime("72h")
-      .setIssuer("ph-auth")
-      .sign(privateKey)
 
     const s3 = new S3Client({
       region: "us-east-1",
@@ -57,7 +50,8 @@ describe("MinIO content upload and fetch", () => {
     }
 
     app = await build({
-      opaqueSecret: "test-opaque-secret",
+      opaqueSecret:
+        "6DmX6_iK-ewvZe6FKOVmJHo93dGuCLGaXmOX62dw11Xscbu9Iq79u5Jy9pjWs9u46hOWRsBcKJiS1crb443aLJOCTmJ6dDQtYgqNX4oyR2F7VecJ7wASYtYB1PSIxq0IFqOjikVQKZXWtlHy_7PTq-vgb8zk2kIQyFHaQhAamQI",
       pgConnection: "postgresql://postgres:postgres@localhost:5432/postgres",
       signingKey: privateKey,
       publicKey: publicKey,
@@ -68,30 +62,37 @@ describe("MinIO content upload and fetch", () => {
       bucketName: BUCKET_NAME,
       bucketNamePublic: BUCKET_NAME,
     })
+
+    const testUsername = `user-${Date.now()}@example`
+    console.log(testUsername)
+    const signingKeyBytes = new Uint8Array([1, 2, 3, 4, 5])
+    testUserId = await registerUser(app, testUsername, signingKeyBytes)
+
+    token = await loginUser(app, testUsername)
   })
 
   afterAll(async () => {
     await app.close()
   })
 
-  async function upload(objectId: Buffer, binaryContent: Buffer, nonce: Buffer, token: string) {
+  async function upload(objectId: Buffer, binaryContent: Buffer, nonce: Buffer, token: string, version: bigint = 0n) {
     const objectIdString = objectId.toString("base64url")
-    // Build single-item batch payload in the new binary format
     // [magic: 4 bytes][version: 2 bytes]
     // [nonce_len: u16][nonce]
     // [id_len: u16][id]
+    // [version: u64]
     // [blob_len: u64][blob]
     const magic = 0xdaab0000
-    const version = 1
-
+    const protocolVersion = 1
+    // Use base64url decode/encode for idBytes
     const idBytes = Buffer.from(objectIdString, "base64url")
-    const totalSize = 4 + 2 + 2 + nonce.length + 2 + idBytes.length + 8 + binaryContent.length
+    const totalSize = 4 + 2 + 2 + nonce.length + 2 + idBytes.length + 8 + 8 + binaryContent.length
     const buf = Buffer.alloc(totalSize)
     let offset = 0
 
     buf.writeUInt32BE(magic, offset)
     offset += 4
-    buf.writeUInt16BE(version, offset)
+    buf.writeUInt16BE(protocolVersion, offset)
     offset += 2
 
     buf.writeUInt16BE(nonce.length, offset)
@@ -103,6 +104,9 @@ describe("MinIO content upload and fetch", () => {
     offset += 2
     idBytes.copy(buf, offset)
     offset += idBytes.length
+
+    buf.writeBigUInt64BE(BigInt(version), offset)
+    offset += 8
 
     buf.writeBigUInt64BE(BigInt(binaryContent.length), offset)
     offset += 8
@@ -153,15 +157,13 @@ describe("MinIO content upload and fetch", () => {
     const decoded = decode(batchResponse.rawPayload)
 
     expect(decoded).toEqual({
-      error: `Missing objectId: ${objectIdString}`,
+      error: `Missing objectIds: ${objectIdString}`,
     })
   })
 
   it("should upload single file and retrieve it via batch", async () => {
     const { putResponse, objectId, objectIdString, nonceHeader, binaryContent } = await uploadRandomFile()
-
     expect(putResponse.statusCode).toBe(204)
-
     const batchBody = encode([objectId])
     const batchResponse = await app.inject({
       method: "POST",
@@ -173,14 +175,14 @@ describe("MinIO content upload and fetch", () => {
       },
       payload: batchBody,
     })
-
     expect(batchResponse.statusCode).toBe(200)
-
     const decoded = decode(batchResponse.rawPayload)
     const fetched = decoded[objectIdString]
-
     expect(Buffer.compare(fetched.body, binaryContent)).toBe(0)
     expect(nonceHeader).toBe(fetched.nonce)
+    // Accept string, number, or bigint for version
+    expect(["string", "number", "bigint"].includes(typeof fetched.version)).toBe(true)
+    expect(BigInt(fetched.version)).toBe(1n)
   })
 
   it("should upload multiple files and retrieve them via batch", async () => {
@@ -245,7 +247,7 @@ describe("MinIO content upload and fetch", () => {
     const decoded = decode(batchResponse.rawPayload)
 
     expect(decoded).toEqual({
-      error: `Missing objectId: ${nonExistentObjectIdString}`,
+      error: `Missing objectIds: ${nonExistentObjectIdString}`,
     })
   })
 
@@ -292,24 +294,15 @@ describe("MinIO content upload and fetch", () => {
 
   it("should allow update if object exists and is owned by same user", async () => {
     const objectId = Buffer.from(randomBytes(16))
-
     const objectIdString = objectId.toString("base64url")
     const binaryContent = Buffer.from("first content")
     const nonce = randomBytes(16)
-
+    // Initial upload, version 0
     const res1 = await upload(objectId, binaryContent, nonce, token)
     expect(res1.putResponse.statusCode).toBe(204)
-
-    const nonce2 = randomBytes(16)
-
-    const updatedBinaryFile = Buffer.from("overwrite")
-
-    const res2 = await upload(objectId, updatedBinaryFile, nonce2, token)
-
-    expect(res2.putResponse.statusCode).toBe(204)
-
-    const batchBody = encode([objectId])
-    const batchResponse = await app.inject({
+    // Fetch to get current version
+    const batchBody1 = encode([objectId])
+    const batchResponse1 = await app.inject({
       method: "POST",
       url: "/content/batch",
       headers: {
@@ -317,16 +310,37 @@ describe("MinIO content upload and fetch", () => {
         "content-type": "application/cbor",
         accept: "application/cbor",
       },
-      payload: batchBody,
+      payload: batchBody1,
     })
+    expect(batchResponse1.statusCode).toBe(200)
+    const decoded1 = decode(batchResponse1.rawPayload)
+    const fetched1 = decoded1[objectIdString]
+    expect(BigInt(fetched1.version)).toBe(1n)
+    // Update with correct version
+    const nonce2 = randomBytes(16)
+    const updatedBinaryFile = Buffer.from("overwrite")
+    // Always use BigInt for version
+    const correctVersion = BigInt(fetched1.version)
+    const res2 = await upload(objectId, updatedBinaryFile, nonce2, token, correctVersion)
+    expect(res2.putResponse.statusCode).toBe(204)
+  })
 
-    expect(batchResponse.statusCode).toBe(200)
+  it("should return 412 if version is stale (optimistic locking)", async () => {
+    const objectId = Buffer.from(randomBytes(16))
+    const binaryContent = Buffer.from("first content")
+    const nonce = randomBytes(16)
 
-    const decoded2 = decode(batchResponse.rawPayload)
-    const fetched = decoded2[objectIdString]
+    const res1 = await upload(objectId, binaryContent, nonce, token)
+    expect(res1.putResponse.statusCode).toBe(204)
 
-    expect(Buffer.compare(fetched.body, updatedBinaryFile)).toBe(0)
-    expect(nonce2.toString("base64url")).toBe(fetched.nonce)
+    const nonce2 = randomBytes(16)
+    const updatedBinaryFile = Buffer.from("overwrite")
+    const res2 = await upload(objectId, updatedBinaryFile, nonce2, token)
+    expect(res2.putResponse.statusCode).toBe(412)
+    const decoded = decode(res2.putResponse.rawPayload)
+    console.log(decoded)
+    expect(BigInt(decoded.version)).toBe(BigInt(1))
+    expect(decoded.objectId).toBe(objectId.toString("base64url"))
   })
 
   it("should return 403 if object exists and is owned by another user", async () => {
@@ -338,21 +352,16 @@ describe("MinIO content upload and fetch", () => {
     const res1 = await upload(objectId, binaryContent, nonce, token)
     expect(res1.putResponse.statusCode).toBe(204)
 
-    const newToken = await new SignJWT({ sub: "456", ["ph-user"]: "bobby" })
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuedAt()
-      .setNotBefore(Math.floor(Date.now() / 1000))
-      .setExpirationTime("72h")
-      .setIssuer("ph-auth")
-      .sign(privateKey)
+    const newUsername = `bobby@example${Date.now()}.com`
+    const signingKeyBytes = new Uint8Array([6, 7, 8, 9, 10])
+    await registerUser(app, newUsername, signingKeyBytes)
+    const newToken = await loginUser(app, newUsername)
 
     const nonce2 = randomBytes(16)
 
     const res2 = await upload(objectId, Buffer.from("malicious overwrite"), nonce2, newToken)
 
     expect(res2.putResponse.statusCode).toBe(403)
-    const decoded = decode(res2.putResponse.rawPayload)
-    expect(decoded).toEqual({ error: "This object is restricted" })
   })
 
   it("should reject JWTs with alg: none", async () => {

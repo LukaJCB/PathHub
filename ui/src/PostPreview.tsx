@@ -23,7 +23,7 @@ export const PostPreview: React.FC<Props> = ({ post, userId, username, page, tok
     const fetchData = async () => {
       const result = await retrieveAndDecryptContent(rs, post.thumbnail)
 
-      const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(result))
+      const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(result[0]))
       const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
         type: mimeType,
       })

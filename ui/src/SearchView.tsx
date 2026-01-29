@@ -38,7 +38,7 @@ export const SearchView: React.FC = () => {
       try {
         //TODO maybe only load specific indexes when we need them?
         const allIndexes = await getAllIndexes(user.manifest, user.masterKey, rs)
-        setIndexes(allIndexes)
+        setIndexes(allIndexes[0])
       } catch (err) {
         console.error(err)
         setError("Unable to load search indexes. Please try again.")

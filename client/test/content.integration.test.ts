@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll } from "vitest"
 import { createAuthClient } from "../src/authClient.js"
 import { createContentClient } from "../src/http/storageClient.js"
 import { base64urlToUint8, uint8ToBase64Url } from "../src/remoteStore.js"
+import { encode } from "cbor-x"
+import { bytesToBase64 } from "ts-mls"
 
 const authBaseUrl = "http://localhost:3000"
 const contentBaseUrl = "http://localhost:3000"
@@ -67,5 +69,58 @@ describe("Authentication + Content End-to-End", () => {
     expect(new Uint8Array(e2!.body)).toEqual(new Uint8Array(body2))
     expect(e1!.nonce).toBe(uint8ToBase64Url(nonce1))
     expect(e2!.nonce).toBe(uint8ToBase64Url(nonce2))
+  })
+
+  it.only("uploads multiple blobs with batchPut, updates them and retrieves them via batch", async () => {
+    const contentClient = createContentClient(contentBaseUrl, token)
+
+    const id1 = uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(16)))
+    const id2 = uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(16)))
+    const body1 = crypto.getRandomValues(new Uint8Array(24))
+    const body2 = crypto.getRandomValues(new Uint8Array(28))
+    const nonce1 = crypto.getRandomValues(new Uint8Array(12))
+    const nonce2 = crypto.getRandomValues(new Uint8Array(14))
+
+    await contentClient.batchPut([
+      { id: id1, body: body1, nonce: nonce1 },
+      { id: id2, body: body2, nonce: nonce2 },
+    ])
+
+    const fetched1 = await contentClient.batchGetContent([base64urlToUint8(id1), base64urlToUint8(id2)])
+
+    console.log(bytesToBase64(encode({ foo: [{ value: 3n }] })))
+
+    const e1 = fetched1[id1]
+    const e2 = fetched1[id2]
+    expect(e1).toBeDefined()
+    expect(e2).toBeDefined()
+    expect(BigInt(e1!.version)).toEqual(1n)
+    expect(BigInt(e2!.version)).toEqual(1n)
+    expect(new Uint8Array(e1!.body)).toEqual(new Uint8Array(body1))
+    expect(new Uint8Array(e2!.body)).toEqual(new Uint8Array(body2))
+    expect(e1!.nonce).toBe(uint8ToBase64Url(nonce1))
+    expect(e2!.nonce).toBe(uint8ToBase64Url(nonce2))
+
+    const body3 = crypto.getRandomValues(new Uint8Array(24))
+    const body4 = crypto.getRandomValues(new Uint8Array(28))
+    const nonce3 = crypto.getRandomValues(new Uint8Array(12))
+    const nonce4 = crypto.getRandomValues(new Uint8Array(14))
+
+    await contentClient.batchPut([
+      { id: id1, body: body3, nonce: nonce3, version: BigInt(e1!.version) },
+      { id: id2, body: body4, nonce: nonce4, version: BigInt(e2!.version) },
+    ])
+
+    const fetched2 = await contentClient.batchGetContent([base64urlToUint8(id1), base64urlToUint8(id2)])
+
+    const e3 = fetched2[id1]
+    const e4 = fetched2[id2]
+
+    expect(e3).toBeDefined()
+    expect(e4).toBeDefined()
+    expect(new Uint8Array(e3!.body)).toEqual(new Uint8Array(body3))
+    expect(new Uint8Array(e4!.body)).toEqual(new Uint8Array(body4))
+    expect(e3!.nonce).toBe(uint8ToBase64Url(nonce3))
+    expect(e4!.nonce).toBe(uint8ToBase64Url(nonce4))
   })
 })

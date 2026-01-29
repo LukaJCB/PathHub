@@ -1,4 +1,10 @@
-import { InteractionComment, PostManifestPage, PostMeta, StorageIdentifier } from "pathhub-client/src/manifest.js"
+import {
+  InteractionComment,
+  PostManifestPage,
+  PostMeta,
+  StorageIdentifier,
+  Versioned,
+} from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react"
 import { useAuthRequired } from "./useAuth"
 import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
@@ -31,7 +37,9 @@ export const PostView = () => {
   const messager: MessageClient = createMessageClient("/messaging", user.token)
   const [canView, setCanView] = useState(true)
   const [post, setPost] = useState<PostMeta | null>(null)
-  const [postManifestPage, setPostManifestPage] = useState<[PostManifestPage, StorageIdentifier] | null>(null)
+  const [postManifestPage, setPostManifestPage] = useState<[Versioned<PostManifestPage>, StorageIdentifier] | null>(
+    null,
+  )
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [comments, setComments] = useState<InteractionComment[]>([])
   const [likes, setLikes] = useState(0)
@@ -73,7 +81,7 @@ export const PostView = () => {
 
         const media = p!.media.map((m) => retrieveAndDecryptContent(rs, m))
 
-        const [fetchedPost, likes, comments, ...fetchedMedia] = await Promise.all([
+        const [[fetchedPost, _postVersion], likes, comments, ...fetchedMedia] = await Promise.all([
           retrieveAndDecryptContent(rs, p!.main),
           l ? retrieveAndDecryptContent(rs, l) : Promise.resolve(undefined),
           c ? retrieveAndDecryptContent(rs, c) : Promise.resolve(undefined),
@@ -81,7 +89,7 @@ export const PostView = () => {
         ])
 
         const urls = fetchedMedia.map((i) => {
-          const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i))
+          const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i[0]))
           const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
             type: mimeType,
           })
@@ -91,11 +99,11 @@ export const PostView = () => {
         setImageUrls(urls)
 
         setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
-        const decodedComments = comments ? decodeComments(new Uint8Array(comments)) : []
+        const decodedComments = comments ? decodeComments(new Uint8Array(comments[0])) : []
         setComments(decodedComments.sort((a, b) => a.date - b.date))
 
         if (likes) {
-          const ls = decodeLikes(new Uint8Array(likes))
+          const ls = decodeLikes(new Uint8Array(likes[0]))
           setUserHasLiked(ls.some((l) => l.author === user.id))
         }
 
@@ -147,7 +155,7 @@ export const PostView = () => {
     e.preventDefault()
     // const isOwnPost = profileUserId === user.id
 
-    const { newManifest, comment } = await commentPost(
+    const { newManifest, interaction } = await commentPost(
       commentText,
       post!,
       profileUserId,
@@ -165,7 +173,7 @@ export const PostView = () => {
       await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
     )
 
-    setComments([...comments, comment])
+    setComments([...comments, interaction])
     setCommentText("")
 
     if (newManifest) {
@@ -179,7 +187,7 @@ export const PostView = () => {
     const isOwnPost = profileUserId === user.id
     setLikes(likes + 1)
     setUserHasLiked(true)
-    const { newManifest, like: _like } = await likePost(
+    const { newManifest, interaction: _like } = await likePost(
       post!,
       (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
       user.ownGroupState,

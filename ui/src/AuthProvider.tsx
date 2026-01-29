@@ -5,7 +5,7 @@ import { getOrCreateManifest } from "pathhub-client/src/init.js"
 import {
   base64urlToUint8,
   createRemoteStore,
-  retrieveAndDecryptContent,
+  retreiveDecryptAndDecode,
   uint8ToBase64Url,
 } from "pathhub-client/src/remoteStore.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
@@ -51,6 +51,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             token,
             avatarUrl: avatarUrl!,
           })
+
+          console.log(user)
         }
       }
 
@@ -114,8 +116,11 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
     masterKey,
     rs,
   )
-  const result = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.followRequests), masterKey])
-  const followRequests = decodeFollowRequests(new Uint8Array(result))
+  const followRequests = await retreiveDecryptAndDecode(
+    rs,
+    [uint8ToBase64Url(manifest.followRequests), masterKey],
+    decodeFollowRequests,
+  )
   const userInfo = await getUserInfo(userId, rs.client, createAuthenticationClient("/auth"), token)
   const avatarUrl = getAvatarImageUrl(userInfo)
 
@@ -125,8 +130,9 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
     manifest,
     postManifest,
     page,
-    followRequests,
+    followRequests: followRequests!,
     groupState,
+    ownGroupStateVersion: 0n,
     keyPair,
     avatarUrl,
   }

@@ -23,7 +23,7 @@ import {
 import { Welcome } from "ts-mls/welcome.js"
 import { deriveGroupIdFromUserId, recipientsFromMlsState } from "./mlsInteractions"
 import { nodeToLeafIndex, toLeafIndex, toNodeIndex } from "ts-mls/treemath.js"
-import { FollowerGroupState, FollowerManifest, Manifest, PostManifest, PostManifestPage } from "./manifest"
+import { FollowerGroupState, FollowerManifest, Manifest, PostManifest, PostManifestPage, Versioned } from "./manifest"
 import { base64urlToUint8, RemoteStore, uint8ToBase64Url } from "./remoteStore"
 import {
   encodeFollowerManifest,
@@ -91,13 +91,13 @@ export async function requestFollow(
   credential: Credential,
   followeeId: string,
   signatureKeyPair: SignatureKeyPair,
-  followRequests: FollowRequests,
+  followRequests: Versioned<FollowRequests>,
   followRequestsId: Uint8Array,
   masterKey: Uint8Array,
   messageClient: MessageClient,
   remoteStore: RemoteStore,
   impl: CiphersuiteImpl,
-): Promise<FollowRequests> {
+): Promise<Versioned<FollowRequests>> {
   const { publicPackage, privatePackage } = await generateKeyPackageWithKey({
     credential,
     signatureKeyPair,
@@ -108,12 +108,13 @@ export async function requestFollow(
 
   const msg: MessagePublic = { kind: "FollowRequest", keyPackage: encodedPublicPackage }
 
-  const newFollowRequests: FollowRequests = {
+  const newFollowRequests: Versioned<FollowRequests> = {
     incoming: followRequests.incoming,
     outgoing: [
       { followeeId, keyPackage: encodedPublicPackage, privateKeyPackage: encodePrivateKeyPackage(privatePackage) },
       ...followRequests.outgoing,
     ],
+    version: followRequests.version + 1n,
   }
 
   await Promise.all([
@@ -127,14 +128,15 @@ export async function requestFollow(
 export async function receiveFollowRequest(
   keyPackage: Uint8Array,
   followerId: string,
-  followRequests: FollowRequests,
+  followRequests: Versioned<FollowRequests>,
   followRequestsId: Uint8Array,
   masterKey: Uint8Array,
   remoteStore: RemoteStore,
-): Promise<FollowRequests> {
-  const newFollowRequests: FollowRequests = {
+): Promise<Versioned<FollowRequests>> {
+  const newFollowRequests: Versioned<FollowRequests> = {
     incoming: [{ keyPackage, followerId }, ...followRequests.incoming],
     outgoing: followRequests.outgoing,
+    version: followRequests.version + 1n,
   }
 
   await encryptAndStoreWithPostSecret(masterKey, remoteStore, encodeFollowRequests(newFollowRequests), followRequestsId)
@@ -146,17 +148,17 @@ export async function allowFollow(
   followerId: string,
   followeeId: string,
   keyPackage: KeyPackage,
-  followRequests: FollowRequests,
-  page: PostManifestPage,
-  postManifest: PostManifest,
-  manifest: Manifest,
+  followRequests: Versioned<FollowRequests>,
+  page: Versioned<PostManifestPage>,
+  postManifest: Versioned<PostManifest>,
+  manifest: Versioned<Manifest>,
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   remoteStore: RemoteStore,
   messageClient: MessageClient,
-  clientState: ClientState,
+  clientState: Versioned<ClientState>,
   impl: CiphersuiteImpl,
-): Promise<[FollowRequests, ClientState, Manifest, PostManifest]> {
+): Promise<[Versioned<FollowRequests>, Versioned<ClientState>, Versioned<Manifest>, Versioned<PostManifest>]> {
   const addProposal: Proposal = {
     proposalType: defaultProposalTypes.add,
     add: { keyPackage },
@@ -185,23 +187,26 @@ export async function allowFollow(
     ratchetTreeExtension: true,
   })
 
-  const newFollowRequests: FollowRequests = {
+  const newFollowRequests: Versioned<FollowRequests> = {
     incoming: followRequests.incoming.filter((fr) => fr.followerId !== followerId),
     outgoing: followRequests.outgoing,
+    version: followRequests.version + 1n,
   }
 
   const newGroupState = commitResult.newState
   //todo there are a lot of optimizations we could do that cache the current post secret so we don't have to re-derive it everytime.
   const newSecret = await derivePostSecret(newGroupState, impl)
 
-  const newPostManifest: PostManifest = {
+  const newPostManifest: Versioned<PostManifest> = {
     ...postManifest,
     currentPage: [postManifest.currentPage[0], newSecret],
+    version: postManifest.version + 1n,
   }
 
-  const newManifest: Manifest = {
+  const newManifest: Versioned<Manifest> = {
     ...manifest,
     postManifest: [manifest.postManifest[0], newSecret],
+    version: manifest.version + 1n,
   }
 
   const groupId = uint8ToBase64Url(newGroupState.groupContext.groupId)
@@ -223,15 +228,27 @@ export async function allowFollow(
         postSecret: newSecret,
         storageId: base64urlToUint8(manifest.postManifest[0]),
         content: encodePostManifest(newPostManifest),
+        version: postManifest.version,
       },
       {
         postSecret: newSecret,
         storageId: base64urlToUint8(postManifest.currentPage[0]),
         content: encodePostManifestPage(page),
+        version: page.version,
       },
-      { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest) },
-      { postSecret: masterKey, storageId: groupStateStorageId, content: encodeFollowerGroupState(followerGroupState) },
-      { postSecret: masterKey, storageId: manifest.followRequests, content: encodeFollowRequests(newFollowRequests) },
+      { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest), version: manifest.version },
+      {
+        postSecret: masterKey,
+        storageId: groupStateStorageId,
+        content: encodeFollowerGroupState(followerGroupState),
+        version: clientState.version,
+      },
+      {
+        postSecret: masterKey,
+        storageId: manifest.followRequests,
+        content: encodeFollowRequests(newFollowRequests),
+        version: followRequests.version,
+      },
     ]),
     messageClient.sendMessage({
       payload: encodeMessagePublic({ mlsMessage: encode(mlsMessageEncoder, mlsWelcome), kind: "GroupMessage" }),
@@ -249,19 +266,19 @@ export async function allowFollow(
     //localStore.storeGroupState(commitResult.newState),
   ])
 
-  return [newFollowRequests, newGroupState, newManifest, newPostManifest]
+  return [newFollowRequests, { ...newGroupState, version: clientState.version + 1n }, newManifest, newPostManifest]
 }
 
 export async function processAllowFollow(
   followeeId: string,
   welcome: Welcome,
-  followRequests: FollowRequests,
+  followRequests: Versioned<FollowRequests>,
   masterKey: Uint8Array,
-  manifest: Manifest,
+  manifest: Versioned<Manifest>,
   manifestId: Uint8Array,
   remoteStore: RemoteStore,
   impl: CiphersuiteImpl,
-): Promise<[FollowRequests, Manifest, FollowerManifest, ClientState]> {
+): Promise<[Versioned<FollowRequests>, Versioned<Manifest>, Versioned<FollowerManifest>, ClientState]> {
   const { keyPackage, privateKeyPackage } = followRequests.outgoing.find((fr) => fr.followeeId === followeeId)!
 
   const kp = decode(keyPackageDecoder, keyPackage)!
@@ -286,9 +303,10 @@ export async function processAllowFollow(
     [followeeId, followerManifestStorageId],
   ])
 
-  const newFollowRequests: FollowRequests = {
+  const newFollowRequests: Versioned<FollowRequests> = {
     incoming: followRequests.incoming,
     outgoing: followRequests.outgoing.filter((fr) => fr.followeeId !== followeeId),
+    version: followRequests.version + 1n,
   }
 
   const followerGroupState: FollowerGroupState = {
@@ -303,18 +321,34 @@ export async function processAllowFollow(
     [uint8ToBase64Url(await deriveGroupIdFromUserId(followeeId)), newGroupStateStorageId],
   ])
 
-  const newManifest: Manifest = {
+  const newManifest: Versioned<Manifest> = {
     ...manifest,
     groupStates: newGroupStateManifest,
     followerManifests: newFollowerManifests,
+    version: manifest.version + 1n,
   }
 
   await batchEncryptAndStoreWithSecrets(remoteStore, [
-    { postSecret: masterKey, storageId: newGroupStateStorageId, content: encodeFollowerGroupState(followerGroupState) },
-    { postSecret: masterKey, storageId: manifest.followRequests, content: encodeFollowRequests(newFollowRequests) },
-    { postSecret: masterKey, storageId: followerManifestStorageId, content: followerManifestExtension.extensionData },
-    { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest) },
+    {
+      postSecret: masterKey,
+      storageId: newGroupStateStorageId,
+      content: encodeFollowerGroupState(followerGroupState),
+      version: 0n,
+    },
+    {
+      postSecret: masterKey,
+      storageId: manifest.followRequests,
+      content: encodeFollowRequests(newFollowRequests),
+      version: followRequests.version,
+    },
+    {
+      postSecret: masterKey,
+      storageId: followerManifestStorageId,
+      content: followerManifestExtension.extensionData,
+      version: 0n,
+    },
+    { postSecret: masterKey, storageId: manifestId, content: encodeManifest(newManifest), version: manifest.version },
   ])
 
-  return [newFollowRequests, newManifest, followerManifest, group]
+  return [newFollowRequests, newManifest, { ...followerManifest, version: 0n }, group]
 }

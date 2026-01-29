@@ -1,5 +1,5 @@
 import { CiphersuiteImpl, ClientState, clientStateDecoder, decode } from "ts-mls"
-import { Manifest, PostManifest, PostManifestPage, StorageIdentifier } from "./manifest"
+import { Manifest, PostManifest, PostManifestPage, StorageIdentifier, Versioned } from "./manifest"
 import {
   RemoteStore,
   retrieveAndDecryptFollowerPostManifest,
@@ -11,7 +11,7 @@ import { getGroupStateIdFromManifest } from "./init"
 
 export async function getPageForUser(
   manifest: Manifest,
-  currentPage: PostManifestPage,
+  currentPage: Versioned<PostManifestPage>,
   postManifest: PostManifest,
   masterKey: Uint8Array,
   userId: string,
@@ -20,7 +20,7 @@ export async function getPageForUser(
   ownGroupState: ClientState,
   rs: RemoteStore,
   impl: CiphersuiteImpl,
-): Promise<[[PostManifestPage, StorageIdentifier], PostManifest, ClientState] | undefined> {
+): Promise<[[Versioned<PostManifestPage>, StorageIdentifier], PostManifest, ClientState] | undefined> {
   if (userId !== profileUserId) {
     const followerManifest = manifest.followerManifests.get(profileUserId)
     if (followerManifest) {
@@ -92,11 +92,11 @@ export async function getPostManifestForUser(
 }
 
 export async function getPage(
-  currentPage: PostManifestPage,
+  currentPage: Versioned<PostManifestPage>,
   postManifest: PostManifest,
   pageNumber: number,
   rs: RemoteStore,
-): Promise<[PostManifestPage, StorageIdentifier]> {
+): Promise<[Versioned<PostManifestPage>, StorageIdentifier]> {
   const index = pageNumber
   if (currentPage.pageIndex == index) {
     return [currentPage, postManifest.currentPage]

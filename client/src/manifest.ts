@@ -1,6 +1,8 @@
 //First is the objectId, second is the key
 export type StorageIdentifier = [string, Uint8Array]
 
+export type Versioned<T> = T & { version: bigint }
+
 // use a new manifest every time the master key is rotated
 export interface Manifest {
   postManifest: StorageIdentifier
@@ -66,6 +68,8 @@ export interface InteractionLike extends BaseInteraction {
   kind: "like"
 }
 
+export type InteractionType = "comment" | "like"
+
 export type Interaction = InteractionComment | InteractionLike
 
 export interface Totals {
@@ -110,6 +114,30 @@ export interface IndexManifest {
   gearMap: Map<number, string>
 }
 
+export interface ChunkedIndexManifest {
+  chunkSize: number
+  chunks: IndexChunkRef[]
+}
+
+export interface IndexChunkRef {
+  min: number
+  max: number
+  ref: string
+}
+
+export interface IndexManifest2 {
+  byDistance: ChunkedIndexManifest
+  byDuration: ChunkedIndexManifest
+  byElevation: ChunkedIndexManifest
+  byType: ChunkedIndexManifest
+  byGear: ChunkedIndexManifest
+  wordIndex: ChunkedIndexManifest
+  postLocator: ChunkedIndexManifest
+  typeMap: Map<number, string>
+  gearMap: Map<number, string>
+}
+
+//todo break down individual indexes into smaller ones once certain size is reached
 export interface IndexCollection {
   byDistance: PostReference[]
   byDuration: PostReference[]

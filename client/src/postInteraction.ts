@@ -7,6 +7,8 @@ import {
   FollowerGroupState,
   InteractionComment,
   InteractionLike,
+  Interaction,
+  Versioned,
 } from "./manifest"
 import {
   CiphersuiteImpl,
@@ -23,7 +25,7 @@ import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from ".
 import {
   base64urlToUint8,
   RemoteStore,
-  retrieveAndDecryptContent,
+  retreiveDecryptAndDecode,
   retrieveAndDecryptGroupState,
   uint8ToBase64Url,
 } from "./remoteStore"
@@ -51,16 +53,16 @@ export async function commentPost(
   authorId: string,
   remoteStore: RemoteStore,
   messageClient: MessageClient,
-  page: PostManifestPage,
+  page: Versioned<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: PostManifest,
-  manifest: Manifest,
+  postManifest: Versioned<PostManifest>,
+  manifest: Versioned<Manifest>,
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   impl: CiphersuiteImpl,
 ): Promise<{
-  newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined
-  comment: InteractionComment
+  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+  interaction: InteractionComment
 }> {
   const commentTbs: CommentTbs = {
     postId: meta.main[0],
@@ -72,27 +74,10 @@ export async function commentPost(
   const comment = await signComment(signingKey, commentTbs)
 
   if (authorId === posterId) {
-    const comments = await updateCommentList(meta, remoteStore, comment)
-
-    const commentsEncoded = encodeComments(comments)
-
-    const storageIdentifier = await encryptAndStore(
-      ownGroupState,
-      impl,
+    return await interactOwnPost(
+      meta,
       remoteStore,
-      commentsEncoded,
-      meta.comments ? base64urlToUint8(meta.comments[0]) : undefined,
-    )
-
-    const newMeta: PostMeta = {
-      ...meta,
-      totalComments: meta.totalComments + 1,
-      sampleComments: [...meta.sampleComments.slice(1, meta.sampleComments.length), comment],
-      comments: storageIdentifier,
-    }
-
-    //todo send mls message to everyone who has previously commented on the post
-    const [newPage, newPostManifest, newManifest] = await replaceInPage(
+      comment,
       ownGroupState,
       impl,
       page,
@@ -101,11 +86,7 @@ export async function commentPost(
       manifest,
       manifestId,
       masterKey,
-      newMeta,
-      remoteStore,
     )
-
-    return { newManifest: [newManifest, newPostManifest, newPage, newMeta], comment }
   } else {
     const msg: Message = {
       kind: "Interaction",
@@ -136,7 +117,6 @@ export async function commentPost(
       groupState: encode(clientStateEncoder, res.newState),
     }
 
-    console.log(recipientsFromMlsState([], groupState))
     await Promise.all([
       messageClient.sendMessage({
         payload: encodeMessagePublic(mp),
@@ -150,23 +130,99 @@ export async function commentPost(
       ),
     ])
 
-    return { comment, newManifest: undefined }
+    return { interaction: comment, newManifest: undefined }
   }
+}
+
+export async function interactOwnPost<T extends Interaction>(
+  meta: PostMeta,
+  remoteStore: RemoteStore,
+  interaction: T,
+  ownGroupState: ClientState,
+  impl: CiphersuiteImpl,
+  page: Versioned<PostManifestPage>,
+  pageId: StorageIdentifier,
+  postManifest: Versioned<PostManifest>,
+  manifest: Versioned<Manifest>,
+  manifestId: Uint8Array,
+  masterKey: Uint8Array,
+): Promise<{
+  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta]
+  interaction: T
+}> {
+  let newMeta: PostMeta
+  if (interaction.kind === "comment") {
+    const [comments, commentsVersion] = await updateCommentList(meta, remoteStore, interaction)
+
+    const commentsEncoded = encodeComments(comments)
+
+    //todo combine this with the below replaceInPage into a single transaction
+    const storageIdentifier = await encryptAndStore(
+      ownGroupState,
+      impl,
+      remoteStore,
+      commentsEncoded,
+      commentsVersion,
+      meta.comments ? base64urlToUint8(meta.comments[0]) : undefined,
+    )
+
+    newMeta = {
+      ...meta,
+      totalComments: meta.totalComments + 1,
+      sampleComments: [...meta.sampleComments.slice(1, meta.sampleComments.length), interaction],
+      comments: storageIdentifier,
+    }
+  } else {
+    const [likes, likesVersion] = await updateLikeList(meta, remoteStore, interaction)
+
+    const likesEncoded = encodeLikes(likes)
+
+    //todo combine this with the below replaceInPage into a single transaction
+    const storageIdentifier = await encryptAndStore(
+      ownGroupState,
+      impl,
+      remoteStore,
+      likesEncoded,
+      likesVersion,
+      meta.likes ? base64urlToUint8(meta.likes[0]) : undefined,
+    )
+
+    newMeta = {
+      ...meta,
+      totalLikes: likes.length,
+      sampleLikes: [...meta.sampleLikes.slice(1, meta.sampleLikes.length), interaction],
+      likes: storageIdentifier,
+    }
+  }
+
+  //todo send mls message to everyone who has previously commented on the post
+  const [newPage, newPostManifest, newManifest] = await replaceInPage(
+    ownGroupState,
+    impl,
+    page,
+    pageId,
+    postManifest,
+    manifest,
+    manifestId,
+    masterKey,
+    newMeta,
+    remoteStore,
+  )
+
+  return { newManifest: [newManifest, newPostManifest, newPage, newMeta] as const, interaction }
 }
 
 export async function updateCommentList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   comment: InteractionComment,
-): Promise<InteractionComment[]> {
+): Promise<[InteractionComment[], bigint]> {
   if (meta.comments) {
-    const decrypted = await retrieveAndDecryptContent(remoteStore, meta.comments)
+    const decoded = await retreiveDecryptAndDecode(remoteStore, meta.comments, decodeComments)
 
-    const decoded = decodeComments(new Uint8Array(decrypted))
-
-    return [comment, ...decoded]
+    return [[comment, ...decoded!], decoded!.version]
   } else {
-    return [comment]
+    return [[comment], 0n]
   }
 }
 
@@ -177,14 +233,17 @@ export async function likePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  page: PostManifestPage,
+  page: Versioned<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: PostManifest,
-  manifest: Manifest,
+  postManifest: Versioned<PostManifest>,
+  manifest: Versioned<Manifest>,
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   impl: CiphersuiteImpl,
-): Promise<{ like: InteractionLike; newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined }> {
+): Promise<{
+  interaction: InteractionLike
+  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+}> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
     author: authorId,
@@ -198,26 +257,10 @@ export async function likePost(
   //send like to mls group
 
   if (ownPost) {
-    const likes = await updateLikeList(meta, remoteStore, like)
-
-    const likesEncoded = encodeLikes(likes)
-
-    const storageIdentifier = await encryptAndStore(
-      mlsGroup,
-      impl,
+    return await interactOwnPost(
+      meta,
       remoteStore,
-      likesEncoded,
-      meta.likes ? base64urlToUint8(meta.likes[0]) : undefined,
-    )
-
-    const newMeta: PostMeta = {
-      ...meta,
-      totalLikes: likes.length,
-      sampleLikes: [...meta.sampleLikes.slice(1, meta.sampleLikes.length), like],
-      likes: storageIdentifier,
-    }
-
-    const [newPage, newPostManifest, newManifest] = await replaceInPage(
+      like,
       mlsGroup,
       impl,
       page,
@@ -226,14 +269,10 @@ export async function likePost(
       manifest,
       manifestId,
       masterKey,
-      newMeta,
-      remoteStore,
     )
-
-    return { newManifest: [newManifest, newPostManifest, newPage, newMeta], like }
   }
 
-  return { like, newManifest: undefined }
+  return { interaction: like, newManifest: undefined }
 }
 
 export async function unlikePost(
@@ -242,26 +281,30 @@ export async function unlikePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  page: PostManifestPage,
+  page: Versioned<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: PostManifest,
-  manifest: Manifest,
+  postManifest: Versioned<PostManifest>,
+  manifest: Versioned<Manifest>,
   manifestId: Uint8Array,
   masterKey: Uint8Array,
   impl: CiphersuiteImpl,
-): Promise<{ newManifest: [Manifest, PostManifest, PostManifestPage, PostMeta] | undefined }> {
-  //send like to mls group
+): Promise<{
+  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+}> {
+  //todo send unlike to mls group
 
   if (ownPost) {
-    const likes = await removeFromLikeList(meta, remoteStore, authorId)
+    const [likes, likesVersion] = await removeFromLikeList(meta, remoteStore, authorId)
 
     const likesEncoded = encodeLikes(likes)
 
+    //todo combine this with the below replaceInPage into a single transaction
     const storageIdentifier = await encryptAndStore(
       mlsGroup,
       impl,
       remoteStore,
       likesEncoded,
+      likesVersion,
       meta.likes ? base64urlToUint8(meta.likes[0]) : undefined,
     )
 
@@ -295,15 +338,13 @@ export async function updateLikeList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   like: InteractionLike,
-): Promise<InteractionLike[]> {
+): Promise<[InteractionLike[], bigint]> {
   if (meta.likes) {
-    const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes)
+    const decoded = await retreiveDecryptAndDecode(remoteStore, meta.likes, decodeLikes)
 
-    const decoded = decodeLikes(new Uint8Array(decrypted))
-
-    return [like, ...decoded]
+    return [[like, ...decoded!], decoded!.version]
   } else {
-    return [like]
+    return [[like], 0n]
   }
 }
 
@@ -311,13 +352,11 @@ async function removeFromLikeList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   authorId: string,
-): Promise<InteractionLike[]> {
+): Promise<[InteractionLike[], bigint]> {
   if (meta.likes) {
-    const decrypted = await retrieveAndDecryptContent(remoteStore, meta.likes)
+    const decoded = await retreiveDecryptAndDecode(remoteStore, meta.likes, decodeLikes)
 
-    const decoded = decodeLikes(new Uint8Array(decrypted))
-
-    return decoded.filter((l) => l.author !== authorId)
+    return [decoded!.filter((l) => l.author !== authorId), decoded!.version]
   } else {
     return Promise.reject(new Error("Could not retrieve likes from remote store"))
   }

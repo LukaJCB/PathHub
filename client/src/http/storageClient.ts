@@ -1,13 +1,15 @@
 import { encode, decode } from "cbor-x"
 import { toBufferSource } from "ts-mls/util/byteArray.js"
-import { base64urlToUint8 } from "../remoteStore"
+import { base64urlToUint8, uint8ToBase64Url } from "../remoteStore"
 
 export interface StorageClient {
-  putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void>
+  putContent(objectId: string, body: Uint8Array, nonce: Uint8Array, version?: bigint): Promise<void>
 
-  batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void>
+  batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array; version?: bigint }>): Promise<void>
 
-  batchGetContent(objectIds: Uint8Array[]): Promise<Record<string, { body: Uint8Array; nonce: string }>>
+  batchGetContent(
+    objectIds: Uint8Array[],
+  ): Promise<Record<string, { body: Uint8Array; nonce: string; version: bigint }>>
 
   putAvatar(body: Uint8Array, contentType: "image/png" | "image/jpeg" | "image/svg+xml"): Promise<void>
 
@@ -15,11 +17,14 @@ export interface StorageClient {
 }
 
 export function createContentClient(baseUrl: string, authToken: string): StorageClient {
-  async function putContent(objectId: string, body: Uint8Array, nonce: Uint8Array): Promise<void> {
-    return batchPut([{ id: objectId, body, nonce }])
+  async function putContent(objectId: string, body: Uint8Array, nonce: Uint8Array, version?: bigint): Promise<void> {
+    return batchPut([{ id: objectId, body, nonce, version }])
   }
 
-  async function batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array }>): Promise<void> {
+  async function batchPut(
+    payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array; version?: bigint }>,
+  ): Promise<void> {
+    console.log(payloads)
     const headers = {
       "Content-Type": "application/octet-stream",
       Authorization: `Bearer ${authToken}`,
@@ -34,9 +39,10 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       const idBytes = base64urlToUint8(p.id)
       const nonceBytes = p.nonce instanceof Uint8Array ? p.nonce : new Uint8Array(p.nonce)
       const bodyBytes = p.body instanceof Uint8Array ? p.body : new Uint8Array(p.body)
-      const size = 2 + nonceBytes.length + 2 + idBytes.length + 8 + bodyBytes.length
+      const size = 2 + nonceBytes.length + 2 + idBytes.length + 8 + 8 + bodyBytes.length
+      const version = p.version ?? 0n
       totalSize += size
-      return { idBytes, nonceBytes, bodyBytes }
+      return { idBytes, nonceBytes, bodyBytes, version }
     })
 
     const buffer = new ArrayBuffer(totalSize)
@@ -49,7 +55,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     view.setUint16(offset, version, false)
     offset += 2
 
-    for (const { idBytes, nonceBytes, bodyBytes } of entries) {
+    for (const { idBytes, nonceBytes, bodyBytes, version } of entries) {
       view.setUint16(offset, nonceBytes.length, false)
       offset += 2
       uint8.set(nonceBytes, offset)
@@ -59,6 +65,9 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       offset += 2
       uint8.set(idBytes, offset)
       offset += idBytes.length
+
+      view.setBigUint64(offset, version, false)
+      offset += 8
 
       view.setBigUint64(offset, BigInt(bodyBytes.length), false)
       offset += 8
@@ -74,10 +83,16 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
     if (res.status === 204) return
 
-    if (res.status === 400 || res.status === 403) {
+    if (res.status === 400 || res.status === 403 || res.status === 412) {
       const errorBody = await res.arrayBuffer()
       try {
-        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string }
+        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string, objectId: string }
+        console.log(errorDecoded)
+        const pl = payloads.find(p => p.id === errorDecoded.objectId)
+        console.log(pl)
+        console.log(uint8ToBase64Url(pl!.body))
+        const body = decode(pl!.body)
+        console.log(body)
         throw new Error(errorDecoded.error)
       } catch (e) {
         throw new Error(new TextDecoder().decode(errorBody))
@@ -91,7 +106,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
   async function batchGetContent(
     objectIds: Uint8Array[],
-  ): Promise<Record<string, { body: Uint8Array; nonce: string }>> {
+  ): Promise<Record<string, { body: Uint8Array; nonce: string; version: bigint }>> {
     const headers = {
       "Content-Type": "application/cbor",
       Accept: "application/cbor",
@@ -106,7 +121,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
     if (res.status === 200) {
       const arrayBuffer = await res.arrayBuffer()
-      return decode(new Uint8Array(arrayBuffer)) as Record<string, { body: Uint8Array; nonce: string }>
+      return decode(new Uint8Array(arrayBuffer)) as Record<string, { body: Uint8Array; nonce: string; version: bigint }>
     }
 
     if (res.status === 400 || res.status === 404) {

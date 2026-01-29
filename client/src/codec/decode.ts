@@ -7,6 +7,7 @@ import {
   FollowerGroupState,
   InteractionComment,
   InteractionLike,
+  BaseInteraction,
 } from "../manifest"
 import { CommentTbs, LikeTbs } from "../postInteraction"
 import { ClientState, PrivateKeyPackage, decode as decodeMls, clientStateDecoder } from "ts-mls"
@@ -19,6 +20,10 @@ export function decodePostManifestPage(pm: Uint8Array): PostManifestPage {
 
 export function decodeComment(c: Uint8Array): InteractionComment {
   return decode(c) as InteractionComment
+}
+
+export function decodeInteractions(c: Uint8Array): BaseInteraction[] {
+  return decode(c) as BaseInteraction[]
 }
 
 export function decodeComments(cs: Uint8Array): InteractionComment[] {

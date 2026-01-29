@@ -1,6 +1,14 @@
 import { decode } from "cbor-x"
-import { IndexCollection, IndexManifest, Manifest, PostLocatorEntry, PostMeta, PostReference } from "./manifest.js"
-import { RemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "./remoteStore.js"
+import {
+  IndexCollection,
+  IndexManifest,
+  Manifest,
+  PostLocatorEntry,
+  PostMeta,
+  PostReference,
+  Versioned,
+} from "./manifest.js"
+import { RemoteStore, retreiveDecryptAndDecode, retrieveAndDecryptContent, uint8ToBase64Url } from "./remoteStore.js"
 
 export function tokenizeTitle(title: string): string[] {
   return title
@@ -10,42 +18,16 @@ export function tokenizeTitle(title: string): string[] {
     .filter((word) => word.length > 0)
 }
 
-export async function getWordIndex(
-  manifest: Manifest,
-  masterKey: Uint8Array,
-  rs: RemoteStore,
-): Promise<Map<string, string[]>> {
-  const decrypted = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.indexes), masterKey])
-
-  const idxManifest = decode(new Uint8Array(decrypted)) as IndexManifest
-
-  const decryptedIdx = await retrieveAndDecryptContent(rs, [idxManifest.wordIndex, masterKey])
-
-  return decode(new Uint8Array(decryptedIdx)) as Map<string, string[]>
-}
-
-export async function getPostLocatorAndMaps(
-  manifest: Manifest,
-  masterKey: Uint8Array,
-  rs: RemoteStore,
-): Promise<[Map<string, PostLocatorEntry>, Map<number, string>, Map<number, string>]> {
-  const decrypted = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.indexes), masterKey])
-
-  const idxManifest = decode(new Uint8Array(decrypted)) as IndexManifest
-
-  const decryptedIdx = await retrieveAndDecryptContent(rs, [idxManifest.postLocator, masterKey])
-
-  const postLocator = decode(new Uint8Array(decryptedIdx)) as Map<string, PostLocatorEntry>
-  return [postLocator, idxManifest.typeMap, idxManifest.gearMap] as const
-}
-
 export async function getAllIndexes(
   manifest: Manifest,
   masterKey: Uint8Array,
   rs: RemoteStore,
-): Promise<IndexCollection> {
-  const manifestDecrypted = await retrieveAndDecryptContent(rs, [uint8ToBase64Url(manifest.indexes), masterKey])
-  const idxManifest = decode(new Uint8Array(manifestDecrypted)) as IndexManifest
+): Promise<[IndexCollection, Versioned<IndexManifest>]> {
+  const idxManifest = await retreiveDecryptAndDecode<IndexManifest>(
+    rs,
+    [uint8ToBase64Url(manifest.indexes), masterKey],
+    decode,
+  )
 
   const [
     byDistanceDecrypted,
@@ -56,26 +38,28 @@ export async function getAllIndexes(
     wordIndexDecrypted,
     postLocatorDecrypted,
   ] = await Promise.all([
-    retrieveAndDecryptContent(rs, [idxManifest.byDistance, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.byDuration, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.byElevation, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.byType, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.byGear, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.wordIndex, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest.postLocator, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.byDistance, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.byDuration, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.byElevation, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.byType, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.byGear, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.wordIndex, masterKey]),
+    retrieveAndDecryptContent(rs, [idxManifest!.postLocator, masterKey]),
   ])
 
-  return {
-    byDistance: decode(new Uint8Array(byDistanceDecrypted)) as IndexCollection["byDistance"],
-    byDuration: decode(new Uint8Array(byDurationDecrypted)) as IndexCollection["byDuration"],
-    byElevation: decode(new Uint8Array(byElevationDecrypted)) as IndexCollection["byElevation"],
-    byType: decode(new Uint8Array(byTypeDecrypted)) as IndexCollection["byType"],
-    byGear: decode(new Uint8Array(byGearDecrypted)) as IndexCollection["byGear"],
-    wordIndex: decode(new Uint8Array(wordIndexDecrypted)) as IndexCollection["wordIndex"],
-    postLocator: decode(new Uint8Array(postLocatorDecrypted)) as IndexCollection["postLocator"],
-    typeMap: idxManifest.typeMap,
-    gearMap: idxManifest.gearMap,
+  const collection = {
+    byDistance: decode(new Uint8Array(byDistanceDecrypted[0])) as IndexCollection["byDistance"],
+    byDuration: decode(new Uint8Array(byDurationDecrypted[0])) as IndexCollection["byDuration"],
+    byElevation: decode(new Uint8Array(byElevationDecrypted[0])) as IndexCollection["byElevation"],
+    byType: decode(new Uint8Array(byTypeDecrypted[0])) as IndexCollection["byType"],
+    byGear: decode(new Uint8Array(byGearDecrypted[0])) as IndexCollection["byGear"],
+    wordIndex: decode(new Uint8Array(wordIndexDecrypted[0])) as IndexCollection["wordIndex"],
+    postLocator: decode(new Uint8Array(postLocatorDecrypted[0])) as IndexCollection["postLocator"],
+    typeMap: idxManifest!.typeMap,
+    gearMap: idxManifest!.gearMap,
   }
+
+  return [collection, idxManifest!]
 }
 
 export function searchByTitle(

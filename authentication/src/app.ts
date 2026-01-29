@@ -181,6 +181,24 @@ export async function build(config: {
     return res.rows.at(0)
   }
 
+  async function searchUsersByUsername(
+    query: string,
+    limit: number,
+  ): Promise<{ username: string; key: Buffer; userid: string }[]> {
+    const res = await fastify.pg.query<{ username: string; key: Buffer; userid: string }>(
+      `SELECT
+          username,
+          signing_public_key as key,
+          user_id as userid
+        FROM users
+        WHERE lower(username) LIKE '%' || lower($1) || '%'
+        ORDER BY username
+        LIMIT $2`,
+      [query, limit],
+    )
+    return res.rows
+  }
+
   type SaveUserResult = { status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }
 
   async function saveUser(user: FinishRegistrationBody): Promise<SaveUserResult> {
@@ -263,6 +281,7 @@ export async function build(config: {
         getUserInfo,
         getPublicUserInfo,
         getUserByUsername,
+        searchUsersByUsername,
         saveUser,
       })
         .then(() => done())

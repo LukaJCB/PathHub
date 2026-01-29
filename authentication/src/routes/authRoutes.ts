@@ -53,6 +53,10 @@ export async function registerAuthRoutes(
     ) => Promise<{ user: string; manifest: Buffer; key: Buffer; nonce: Buffer; salt: Buffer } | undefined>
     getPublicUserInfo: (userIds: string[]) => Promise<{ username: string; key: Buffer; userid: string }[]>
     getUserByUsername: (username: string) => Promise<{ username: string; key: Buffer; userid: string } | undefined>
+    searchUsersByUsername: (
+      query: string,
+      limit: number,
+    ) => Promise<{ username: string; key: Buffer; userid: string }[]>
     saveUser: (
       user: FinishRegistrationBody,
     ) => Promise<{ status: "ok"; userId: string } | { status: "conflict"; reason: "username_exists" }>
@@ -389,6 +393,45 @@ export async function registerAuthRoutes(
     }
 
     return reply.code(200).type("application/cbor").send(encode(result))
+  })
+
+  const searchUsersSchema = {
+    schema: {
+      body: {
+        type: "object",
+        required: ["query"],
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number", minimum: 1, maximum: 50 },
+        },
+      },
+      response: {
+        200: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              username: { type: "string" },
+              key: { type: "object" },
+              userid: { type: "string" },
+            },
+          },
+        },
+        401: {
+          type: "object",
+        },
+      },
+    },
+  }
+
+  fastify.post<{ Body: { query: string; limit?: number } }>("/searchUsers", searchUsersSchema, async (req, reply) => {
+    const user = await helpers.authenticate(req.headers.authorization)
+    if (user.status === "error") return reply.code(401).type("application/cbor").send()
+
+    const limit = req.body.limit ?? 20
+    const results = await helpers.searchUsersByUsername(req.body.query, limit)
+
+    return reply.code(200).type("application/cbor").send(encode(results))
   })
 
   const jwkSchema = {

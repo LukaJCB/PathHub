@@ -1,5 +1,5 @@
 import { FollowRequests } from "pathhub-client/src/followRequest.js"
-import { PostManifestPage, Manifest, PostManifest } from "pathhub-client/src/manifest.js"
+import { PostManifestPage, Manifest, PostManifest, Versioned } from "pathhub-client/src/manifest.js"
 import { createContext } from "react"
 import { ClientState } from "ts-mls"
 
@@ -7,12 +7,12 @@ export interface User {
   id: string
   name: string
   token: string
-  manifest: Manifest
+  manifest: Versioned<Manifest>
   manifestId: string
-  postManifest: PostManifest
-  currentPage: PostManifestPage
-  ownGroupState: ClientState
-  followRequests: FollowRequests
+  postManifest: Versioned<PostManifest>
+  currentPage: Versioned<PostManifestPage>
+  ownGroupState: Versioned<ClientState>
+  followRequests: Versioned<FollowRequests>
   masterKey: Uint8Array
   avatarUrl: string
 }

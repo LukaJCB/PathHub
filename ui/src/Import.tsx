@@ -312,6 +312,7 @@ export function BulkImport() {
         user.masterKey,
       )
       currentPage = newPage
+      console.log(newPage)
       currentPostManifest = newPostManifest
       currentManifest = newManifest
       currentGroup = newGroup

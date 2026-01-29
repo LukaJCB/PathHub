@@ -7,7 +7,7 @@ import { FastifyInstance } from "fastify"
 
 const password = "securepass123"
 
-async function registerUser(app: FastifyInstance, username: string, signingKey: Uint8Array): Promise<string> {
+export async function registerUser(app: FastifyInstance, username: string, signingKey: Uint8Array): Promise<string> {
   const { registrationRequest, clientRegistrationState } = opaque.client.startRegistration({ password })
 
   const res1 = await app.inject({
@@ -57,7 +57,7 @@ async function registerUser(app: FastifyInstance, username: string, signingKey: 
   return userId
 }
 
-async function loginUser(app: FastifyInstance, username: string): Promise<string> {
+export async function loginUser(app: FastifyInstance, username: string): Promise<string> {
   const { startLoginRequest, clientLoginState } = opaque.client.startLogin({ password })
 
   const res1 = await app.inject({
@@ -270,6 +270,28 @@ describe("/userInfo endpoint", () => {
     })
 
     expect(res.statusCode).toBe(401)
+  })
+
+  it("should search users by username substring (case-insensitive)", async () => {
+    const query = username2.toUpperCase()
+    const res = await app.inject({
+      method: "POST",
+      url: "/auth/searchUsers",
+      headers: {
+        "Content-Type": "application/cbor",
+        Accept: "application/cbor",
+        Authorization: `Bearer ${token1}`,
+      },
+      payload: encode({ query, limit: 50 }),
+    })
+
+    expect(res.statusCode).toBe(200)
+    const result = decode(res.rawPayload)
+
+    expect(Array.isArray(result)).toBe(true)
+    const usernames = result.map((u: any) => u.username)
+    expect(usernames).toContain(username2)
+    expect(usernames).not.toContain(username1)
   })
 
   it("should return partial results when some users exist", async () => {
