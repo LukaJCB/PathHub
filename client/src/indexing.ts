@@ -8,7 +8,7 @@ import {
   PostReference,
   Entity,
 } from "./manifest.js"
-import { RemoteStore, retreiveDecryptAndDecode, retrieveAndDecryptContent, uint8ToBase64Url } from "./remoteStore.js"
+import { RemoteStore, retreiveDecryptAndDecode, retrieveAndDecryptRaw, uint8ToBase64Url } from "./remoteStore.js"
 
 export function tokenizeTitle(title: string): string[] {
   return title
@@ -38,23 +38,23 @@ export async function getAllIndexes(
     wordIndexDecrypted,
     postLocatorDecrypted,
   ] = await Promise.all([
-    retrieveAndDecryptContent(rs, [idxManifest!.byDistance, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.byDuration, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.byElevation, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.byType, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.byGear, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.wordIndex, masterKey]),
-    retrieveAndDecryptContent(rs, [idxManifest!.postLocator, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.byDistance, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.byDuration, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.byElevation, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.byType, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.byGear, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.wordIndex, masterKey]),
+    retrieveAndDecryptRaw(rs, [idxManifest!.postLocator, masterKey]),
   ])
 
   const collection = {
-    byDistance: decode(new Uint8Array(byDistanceDecrypted[0])) as IndexCollection["byDistance"],
-    byDuration: decode(new Uint8Array(byDurationDecrypted[0])) as IndexCollection["byDuration"],
-    byElevation: decode(new Uint8Array(byElevationDecrypted[0])) as IndexCollection["byElevation"],
-    byType: decode(new Uint8Array(byTypeDecrypted[0])) as IndexCollection["byType"],
-    byGear: decode(new Uint8Array(byGearDecrypted[0])) as IndexCollection["byGear"],
-    wordIndex: decode(new Uint8Array(wordIndexDecrypted[0])) as IndexCollection["wordIndex"],
-    postLocator: decode(new Uint8Array(postLocatorDecrypted[0])) as IndexCollection["postLocator"],
+    byDistance: decode(new Uint8Array(byDistanceDecrypted)) as IndexCollection["byDistance"],
+    byDuration: decode(new Uint8Array(byDurationDecrypted)) as IndexCollection["byDuration"],
+    byElevation: decode(new Uint8Array(byElevationDecrypted)) as IndexCollection["byElevation"],
+    byType: decode(new Uint8Array(byTypeDecrypted)) as IndexCollection["byType"],
+    byGear: decode(new Uint8Array(byGearDecrypted)) as IndexCollection["byGear"],
+    wordIndex: decode(new Uint8Array(wordIndexDecrypted)) as IndexCollection["wordIndex"],
+    postLocator: decode(new Uint8Array(postLocatorDecrypted)) as IndexCollection["postLocator"],
     typeMap: idxManifest!.typeMap,
     gearMap: idxManifest!.gearMap,
   }

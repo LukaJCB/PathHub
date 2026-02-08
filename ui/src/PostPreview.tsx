@@ -1,7 +1,7 @@
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { decodeBlobWithMime } from "pathhub-client/src/imageEncoding.js"
 import { PostMeta } from "pathhub-client/src/manifest.js"
-import { createRemoteStore, retrieveAndDecryptContent } from "pathhub-client/src/remoteStore.js"
+import { createRemoteStore, retrieveAndDecryptRaw } from "pathhub-client/src/remoteStore.js"
 import { useEffect, useState } from "react"
 import { Link } from "react-router"
 import { getPostTypeEmoji } from "./postTypeEmojis"
@@ -21,9 +21,9 @@ export const PostPreview: React.FC<Props> = ({ post, userId, username, page, tok
 
   useEffect(() => {
     const fetchData = async () => {
-      const result = await retrieveAndDecryptContent(rs, post.thumbnail)
+      const result = await retrieveAndDecryptRaw(rs, post.thumbnail)
 
-      const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(result[0]))
+      const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(result))
       const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
         type: mimeType,
       })

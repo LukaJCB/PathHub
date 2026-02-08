@@ -9,6 +9,7 @@ import {
   InteractionComment,
   Comments,
   Likes,
+  Route,
 } from "../manifest"
 import { CommentTbs, LikeTbs } from "../postInteraction"
 import { ClientState, clientStateEncoder, PrivateKeyPackage, encode as encodeMls } from "ts-mls"
@@ -45,7 +46,7 @@ export function encodeLikeTbs(l: LikeTbs): Uint8Array {
   return encode(l)
 }
 
-export function encodeRoute(r: [number, number, number][]): Uint8Array {
+export function encodeRoute(r: Route): Uint8Array {
   return encode(r)
 }
 

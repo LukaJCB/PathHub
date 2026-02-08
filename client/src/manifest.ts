@@ -106,6 +106,7 @@ export interface DerivedMetrics {
 }
 
 //TODO should the post description be moved to inside main?
+//TODO should interactions be initalized with empty objects in storage instead?
 export interface PostMeta {
   title: string
   date: number
@@ -124,7 +125,9 @@ export interface PostMeta {
   gear: string | undefined
 }
 
-//TODO should these be initalized with empty objects in storage instead?
+export interface Route {
+  coords: [number, number, number][]
+}
 
 export interface BaseInteraction {
   postId: string

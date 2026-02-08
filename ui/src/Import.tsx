@@ -276,7 +276,7 @@ export function BulkImport() {
         continue
       }
 
-      const content = encodeRoute(parsed.coords)
+      const content = encodeRoute({ coords: parsed.coords })
 
       const blobThumb = await thumbRenderer.render(parsed.coords)
 

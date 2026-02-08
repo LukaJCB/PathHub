@@ -11,6 +11,7 @@ import {
   Interaction,
   Comments,
   Likes,
+  Route,
 } from "../manifest"
 import { CommentTbs, LikeTbs } from "../postInteraction"
 import { ClientState, PrivateKeyPackage, decode as decodeMls, clientStateDecoder } from "ts-mls"
@@ -49,8 +50,8 @@ export function decodeLikeTbs(l: Uint8Array): LikeTbs {
   return decode(l) as LikeTbs
 }
 
-export function decodeRoute(r: Uint8Array): [number, number, number][] {
-  return decode(r) as [number, number, number][]
+export function decodeRoute(r: Uint8Array): Route {
+  return decode(r) as Route
 }
 
 export function decodeClientState(gs: Uint8Array): ClientState {

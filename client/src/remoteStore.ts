@@ -87,20 +87,17 @@ export function base64urlToUint8(s: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-export async function retrieveAndDecryptContent(
-  rs: RemoteStore,
-  id: StorageIdentifier,
-): Promise<[ArrayBuffer, bigint]> {
+export async function retrieveAndDecryptRaw(rs: RemoteStore, id: StorageIdentifier): Promise<ArrayBuffer> {
   const key = await importAesKey(id[1])
 
   const resp = await rs.getContent(id[0])
 
-  const { body, nonce, version } = resp!
+  const { body, nonce } = resp!
 
   const n = base64urlToUint8(nonce)
 
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: n.buffer }, key, toBufferSource(body))
-  return [decrypted, BigInt(version)]
+  return decrypted
 }
 
 export async function retreiveDecryptAndDecode<T>(
@@ -109,8 +106,16 @@ export async function retreiveDecryptAndDecode<T>(
   dec: (b: Uint8Array) => NotArray<T>,
 ): Promise<Entity<T> | undefined> {
   try {
-    const [buf, version] = await retrieveAndDecryptContent(rs, id)
-    const result = dec(new Uint8Array(buf))
+    const key = await importAesKey(id[1])
+
+    const resp = await rs.getContent(id[0])
+
+    const { body, nonce, version } = resp!
+
+    const n = base64urlToUint8(nonce)
+
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: n.buffer }, key, toBufferSource(body))
+    const result = dec(new Uint8Array(decrypted))
 
     return { ...result, version, storage: id }
   } catch (e) {

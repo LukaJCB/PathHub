@@ -4,11 +4,17 @@ import {
   PostMeta,
   StorageIdentifier,
   Entity,
+  Comments,
 } from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react"
 import { useAuthRequired } from "./useAuth"
 import { Link, useParams } from "react-router"
-import { createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js"
+import {
+  createRemoteStore,
+  retreiveDecryptAndDecode,
+  retrieveAndDecryptRaw,
+  uint8ToBase64Url,
+} from "pathhub-client/src/remoteStore.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { commentPost, likePost, unlikePost } from "pathhub-client/src/postInteraction.js"
 import { decodeComments, decodeLikes, decodeRoute } from "pathhub-client/src/codec/decode.js"
@@ -71,17 +77,17 @@ export const PostView = () => {
         const l = p?.likes
         const c = p?.comments
 
-        const media = p!.media.map((m) => retrieveAndDecryptContent(rs, m))
+        const media = p!.media.map((m) => retrieveAndDecryptRaw(rs, m))
 
-        const [[fetchedPost, _postVersion], likes, comments, ...fetchedMedia] = await Promise.all([
-          retrieveAndDecryptContent(rs, p!.main),
-          l ? retrieveAndDecryptContent(rs, l) : Promise.resolve(undefined),
-          c ? retrieveAndDecryptContent(rs, c) : Promise.resolve(undefined),
+        const [fetchedPost, likes, comments, ...fetchedMedia] = await Promise.all([
+          retreiveDecryptAndDecode(rs, p!.main, decodeRoute),
+          l ? retreiveDecryptAndDecode(rs, l, decodeLikes) : Promise.resolve(undefined),
+          c ? retreiveDecryptAndDecode(rs, c, decodeComments) : Promise.resolve(undefined),
           ...media,
         ])
 
         const urls = fetchedMedia.map((i) => {
-          const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i[0]))
+          const { mimeType, bytes } = decodeBlobWithMime(new Uint8Array(i))
           const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
             type: mimeType,
           })
@@ -90,13 +96,12 @@ export const PostView = () => {
 
         setImageUrls(urls)
 
-        setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
-        const decodedComments = comments ? decodeComments(new Uint8Array(comments[0])) : { comments: [] }
+        setGpxData(fetchedPost!.coords)
+        const decodedComments: Comments = comments ?? { comments: [] }
         setComments(decodedComments.comments.sort((a, b) => a.date - b.date))
 
         if (likes) {
-          const ls = decodeLikes(new Uint8Array(likes[0]))
-          setUserHasLiked(ls.likes.some((l) => l.author === user.id))
+          setUserHasLiked(likes.likes.some((l) => l.author === user.id))
         }
 
         setLikes(p!.totalLikes)

@@ -33,8 +33,6 @@ import {
   encodeFollowerGroupState,
 } from "./codec/encode"
 
-export const postLimit = 10
-
 export async function createPost(
   content: Uint8Array,
   metrics: DerivedMetrics,
@@ -54,6 +52,7 @@ export async function createPost(
   _messageClient: MessageClient,
   mls: MlsContext,
   masterKey: Uint8Array,
+  postLimit = 10,
 ): Promise<[Entity<FollowerGroupState>, Entity<PostManifestPage>, Entity<PostManifest>, Entity<Manifest>]> {
   const currentPostSecret = await derivePostSecret(mlsGroup.groupState, mls.cipherSuite)
   const payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }> = []

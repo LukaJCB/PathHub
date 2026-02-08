@@ -279,7 +279,7 @@ const FileUpload: React.FC = () => {
   const handleUpload = async () => {
     if (!selectedFile) return
 
-    const content = encodeRoute(gpxData!.coords)
+    const content = encodeRoute({ coords: gpxData!.coords })
     const rs = createRemoteStore(createContentClient("/storage", user.token))
 
     const blob = await renderRouteThumbnail(gpxData!.coords)
