@@ -35,8 +35,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const { expires } = parseToken(token)
 
         if (expires * 1000 > Date.now()) {
-          const { userId, username, manifest, postManifest, page, followRequests, groupState, avatarUrl } =
-            await setupUserState(token, manifestId, masterKey)
+          const {
+            userId,
+            username,
+            manifest,
+            postManifest,
+            page,
+            keyPair,
+            followRequests,
+            groupState,
+            avatarUrl,
+            mlsContext,
+          } = await setupUserState(token, manifestId, masterKey)
 
           setUser({
             id: userId,
@@ -44,12 +54,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
             currentPage: page,
             postManifest,
             manifest,
-            manifestId,
             followRequests,
             ownGroupState: groupState,
             masterKey,
             token,
             avatarUrl: avatarUrl!,
+            keyPair,
+            mlsContext,
           })
 
           console.log(user)
@@ -68,11 +79,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("manifest_id", res.manifest)
     localStorage.setItem("master_key", uint8ToBase64Url(res.masterKey))
 
-    const { userId, manifest, postManifest, page, followRequests, groupState, avatarUrl } = await setupUserState(
-      res.token,
-      res.manifest,
-      res.masterKey,
-    )
+    const { userId, manifest, postManifest, page, followRequests, groupState, keyPair, avatarUrl, mlsContext } =
+      await setupUserState(res.token, res.manifest, res.masterKey)
 
     setUser({
       id: userId,
@@ -81,11 +89,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       postManifest,
       followRequests,
       manifest,
-      manifestId: res.manifest,
       ownGroupState: groupState,
       token: res.token,
       masterKey: res.masterKey,
       avatarUrl: avatarUrl!,
+      keyPair,
+      mlsContext,
     })
   }
 
@@ -98,7 +107,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("manifest_id")
     localStorage.removeItem("master_key")
-    // todo clear state?
   }
 
   const value = { user, login, logout, loading, updateUser }
@@ -110,7 +118,7 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
   const { userId, username } = parseToken(token)
   const rs = createRemoteStore(createContentClient("/storage", token))
 
-  const [manifest, postManifest, page, groupState, keyPair] = await getOrCreateManifest(
+  const [manifest, postManifest, page, groupState, keyPair, mlsContext] = await getOrCreateManifest(
     userId,
     manifestId,
     masterKey,
@@ -132,8 +140,8 @@ async function setupUserState(token: string, manifestId: string, masterKey: Uint
     page,
     followRequests: followRequests!,
     groupState,
-    ownGroupStateVersion: 0n,
     keyPair,
     avatarUrl,
+    mlsContext,
   }
 }

@@ -1,4 +1,4 @@
-import { CiphersuiteImpl, clientStateDecoder, decode } from "ts-mls"
+import { CiphersuiteImpl } from "ts-mls"
 import { Manifest, PostManifestPage, PostMeta } from "./manifest"
 import {
   RemoteStore,
@@ -28,8 +28,8 @@ export async function getTimeline(
   for (const [userId, followerManifest] of manifest.followerManifests.entries()) {
     const groupStateId = await getGroupStateIdFromManifest(manifest, userId)
     const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-    const groupState = decode(clientStateDecoder, followerGroupState!.groupState)
-    const [, , pmp] = await retrieveAndDecryptFollowerPostManifest(rs, groupState!, impl, followerManifest, masterKey)
+    const groupState = followerGroupState!.groupState
+    const [, , pmp] = await retrieveAndDecryptFollowerPostManifest(rs, groupState, impl, followerManifest, masterKey)
 
     pages.push(...pmp.posts.map((post) => ({ post, userId, page: pmp.pageIndex })))
   }

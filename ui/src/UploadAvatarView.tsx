@@ -3,7 +3,7 @@ import { useAuthRequired } from "./useAuth"
 import { useNavigate } from "react-router"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { updateAvatar } from "pathhub-client/src/userInfo.js"
-import { bytesToArrayBuffer } from "ts-mls/util/byteArray.js"
+import { bytesToArrayBuffer } from "ts-mls"
 
 export const UploadAvatarView: React.FC = () => {
   const { user, updateUser } = useAuthRequired()

@@ -8,6 +8,9 @@ import {
   InteractionComment,
   InteractionLike,
   BaseInteraction,
+  Interaction,
+  Comments,
+  Likes,
 } from "../manifest"
 import { CommentTbs, LikeTbs } from "../postInteraction"
 import { ClientState, PrivateKeyPackage, decode as decodeMls, clientStateDecoder } from "ts-mls"
@@ -26,8 +29,8 @@ export function decodeInteractions(c: Uint8Array): BaseInteraction[] {
   return decode(c) as BaseInteraction[]
 }
 
-export function decodeComments(cs: Uint8Array): InteractionComment[] {
-  return decode(cs) as InteractionComment[]
+export function decodeComments(cs: Uint8Array): Comments {
+  return decode(cs) as Comments
 }
 
 export function decodeCommentTbs(c: Uint8Array): CommentTbs {
@@ -38,8 +41,8 @@ export function decodeLike(l: Uint8Array): InteractionLike {
   return decode(l) as InteractionLike
 }
 
-export function decodeLikes(ls: Uint8Array): InteractionLike[] {
-  return decode(ls) as InteractionLike[]
+export function decodeLikes(ls: Uint8Array): Likes {
+  return decode(ls) as Likes
 }
 
 export function decodeLikeTbs(l: Uint8Array): LikeTbs {
@@ -76,7 +79,12 @@ export function decodeFollowerManifest(m: Uint8Array): FollowerManifest {
 }
 
 export function decodeFollowerGroupState(m: Uint8Array): FollowerGroupState {
-  return decode(m) as FollowerGroupState
+  const x = decode(m) as {
+    groupState: Uint8Array
+    cachedInteractions: Map<string, Interaction[]>
+  }
+
+  return { groupState: decodeClientState(x.groupState), cachedInteractions: x.cachedInteractions }
 }
 
 export function decodeMessagePublic(mp: Uint8Array): MessagePublic {

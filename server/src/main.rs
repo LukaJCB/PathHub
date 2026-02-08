@@ -1,10 +1,14 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
 use anyhow::{Result, bail};
 
-// [magic][version]
+// [u32 magic][u16 version]
+// [u32 extra_len]
+// if extra_len > 0:
+//   [extra bytes]
 // repeat:
 //   [u16 nonce_len][nonce]
 //   [u16 id_len][id]
+//   [u64 version]
 //   [u64 blob_len][blob bytes]
 pub const MAGIC: &[u8; 4] = b"EBL0";
 pub const VERSION: u8 = 1;

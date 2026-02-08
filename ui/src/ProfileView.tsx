@@ -6,7 +6,6 @@ import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { useEffect, useState } from "react"
 import { getAllFollowees, getAllFollowers } from "pathhub-client/src/followRequest.js"
 import { getPageForUser } from "pathhub-client/src/profile.js"
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
 import { PostPreview } from "./PostPreview"
 import { getAvatarImageUrl } from "./App"
 import { getUserInfo } from "pathhub-client/src/userInfo.js"
@@ -35,9 +34,9 @@ export const ProfileView: React.FC = () => {
         user.id,
         profileUserId,
         page,
-        user.ownGroupState,
+        user.ownGroupState.groupState,
         rs,
-        await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+        user.mlsContext.cipherSuite,
       )
 
       if (!result) {
@@ -46,7 +45,7 @@ export const ProfileView: React.FC = () => {
         setTotals(result[1].totals)
         setPostManifestPage(result[0][0])
         if (user.id === profileUserId) {
-          setFollowers(getAllFollowers(user.ownGroupState).length)
+          setFollowers(getAllFollowers(user.ownGroupState.groupState).length)
           setFollowing(getAllFollowees(user.manifest).length)
         } else {
           setFollowers(getAllFollowers(result[2]).length)

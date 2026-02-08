@@ -71,7 +71,7 @@ describe("Authentication + Content End-to-End", () => {
     expect(e2!.nonce).toBe(uint8ToBase64Url(nonce2))
   })
 
-  it.only("uploads multiple blobs with batchPut, updates them and retrieves them via batch", async () => {
+  it("uploads multiple blobs with batchPut, updates them and retrieves them via batch", async () => {
     const contentClient = createContentClient(contentBaseUrl, token)
 
     const id1 = uint8ToBase64Url(crypto.getRandomValues(new Uint8Array(16)))

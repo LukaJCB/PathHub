@@ -29,7 +29,7 @@ export const FollowerView: React.FC = () => {
         user.masterKey,
         user.id,
         profileUserId,
-        user.ownGroupState,
+        user.ownGroupState.groupState,
         remoteStore,
       )
 

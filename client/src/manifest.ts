@@ -1,7 +1,81 @@
+import { ClientState } from "ts-mls"
+import { base64urlToUint8, uint8ToBase64Url } from "./remoteStore"
+
 //First is the objectId, second is the key
 export type StorageIdentifier = [string, Uint8Array]
 
 export type Versioned<T> = T & { version: bigint }
+
+export type NotArray<T> = T extends readonly unknown[] ? never : T
+
+export type Entity<T> = NotArray<T> & { version: bigint; storage: StorageIdentifier }
+
+export interface Payload {
+  postSecret: Uint8Array
+  storageId: Uint8Array
+  content: Uint8Array
+  version: bigint
+}
+
+export function getStorageIdentifier(p: Payload): StorageIdentifier {
+  return [uint8ToBase64Url(p.storageId), p.postSecret]
+}
+
+export function newEntity<T>(t: NotArray<T>, postSecret: Uint8Array, enc: (t: T) => Uint8Array): [Payload, Entity<T>] {
+  const storageId = crypto.getRandomValues(new Uint8Array(32))
+  return newEntityWithId(t, postSecret, storageId, enc)
+}
+
+export function newEntityWithId<T>(
+  t: NotArray<T>,
+  postSecret: Uint8Array,
+  storageId: Uint8Array,
+  enc: (t: T) => Uint8Array,
+): [Payload, Entity<T>] {
+  const payload = {
+    postSecret,
+    storageId,
+    content: enc(t),
+    version: 0n,
+  }
+
+  return [payload, { ...t, version: 1n, storage: [uint8ToBase64Url(storageId), postSecret] }]
+}
+
+export function createPayload<T>(t: T, postSecret: Uint8Array, enc: (t: T) => Uint8Array): Payload {
+  const encoded = enc(t)
+  return createPayloadRaw(encoded, postSecret)
+}
+
+export function createPayloadRaw(t: Uint8Array, postSecret: Uint8Array): Payload {
+  const storageId = crypto.getRandomValues(new Uint8Array(32))
+  const payload = {
+    postSecret,
+    storageId,
+    content: t,
+    version: 0n,
+  }
+
+  return payload
+}
+
+export function updateEntity<T>(
+  old: Entity<T>,
+  updated: NotArray<T>,
+  enc: (t: T) => Uint8Array,
+  newSecret?: Uint8Array,
+): [Payload, Entity<T>] {
+  const newVersion = old.version + 1n
+  const updatedSecret = newSecret ?? old.storage[1]
+  const payload = {
+    postSecret: updatedSecret,
+    storageId: base64urlToUint8(old.storage[0]),
+    content: enc(updated),
+    version: old.version,
+  }
+
+  return [payload, { ...updated, version: newVersion, storage: [old.storage[0], updatedSecret] }]
+}
 
 // use a new manifest every time the master key is rotated
 export interface Manifest {
@@ -14,7 +88,7 @@ export interface Manifest {
 }
 
 export interface FollowerGroupState {
-  groupState: Uint8Array
+  groupState: ClientState
   cachedInteractions: Map<string, Interaction[]>
 }
 
@@ -64,8 +138,16 @@ export interface InteractionComment extends BaseInteraction {
   text: string
 }
 
+export interface Comments {
+  comments: InteractionComment[]
+}
+
 export interface InteractionLike extends BaseInteraction {
   kind: "like"
+}
+
+export interface Likes {
+  likes: InteractionLike[]
 }
 
 export type InteractionType = "comment" | "like"

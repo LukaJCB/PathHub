@@ -1,7 +1,7 @@
 import Fastify from "fastify"
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
-import { encode } from "cbor-x"
+import { decode, encode } from "cbor-x"
 import { randomBytes } from "crypto"
 
 export async function registerContentRoutes(
@@ -33,6 +33,11 @@ export async function registerContentRoutes(
 
   function isErrorWithName(err: unknown): err is { name: string } {
     return typeof err === "object" && err !== null && "name" in err
+  }
+
+  interface ExtraInstruction {
+    kind: "addFollower"
+    ids: string[]
   }
 
   const batchContentUploadSchema = {
@@ -87,12 +92,25 @@ export async function registerContentRoutes(
     const protocolVersion = buffer.readUInt16BE(offset)
     offset += 2
 
-    if (magic !== 0xdaab0000) {
+    if (magic !== 0x00000001) {
+      console.log(magic)
       return reply.code(400).send(encode({ error: "Invalid magic bytes" }))
     }
 
     if (protocolVersion !== 1) {
       return reply.code(400).send(encode({ error: `Unsupported version: ${protocolVersion}` }))
+    }
+
+    const extraLen = buffer.readUInt32BE(offset)
+    offset += 4
+
+    let extraInstruction: ExtraInstruction | null = null
+    if (extraLen > 0) {
+      const extra = buffer.subarray(offset, offset + extraLen)
+      offset += extraLen
+
+      const decoded = decode(extra) as ExtraInstruction | null
+      extraInstruction = decoded
     }
 
     try {
@@ -146,7 +164,18 @@ export async function registerContentRoutes(
         let isErr: { code: 403; objectId: string } | { code: 412; version: bigint; objectId: string } | null = null
         try {
           await client.query("BEGIN")
-          
+
+          if (extraInstruction !== null) {
+            switch (extraInstruction.kind) {
+              case "addFollower":
+                await client.query(
+                  `INSERT INTO follows (follower_id, followee_id)
+                    SELECT unnest($1::uuid[]), $2::uuid
+                    ON CONFLICT DO NOTHING;`,
+                  [extraInstruction.ids, user.userId],
+                )
+            }
+          }
 
           for (const u of uploads) {
             if (u.objectId === "p2vO4Re-VdaqeN_H33UWP9AUHOLuKwD9E1yZjljbeIE") {
@@ -166,10 +195,9 @@ export async function registerContentRoutes(
             if (result.rowCount !== 1) {
               console.log(result.rowCount)
               const existsRes = await client.query<{ version: bigint; user_id: string }>(
-                `SELECT version, user_id FROM content_pointers WHERE object_id = $1`,
+                `SELECT * FROM content_pointers WHERE object_id = $1`,
                 [u.objectId],
               )
-              
 
               await client.query("ROLLBACK")
               const resultRow = existsRes.rows[0]!
@@ -269,14 +297,6 @@ export async function registerContentRoutes(
         const foundIds = new Set(lookupRes.rows.map((r) => r.object_id))
         const notFound = objectIdStrings.filter((o) => !foundIds.has(o))
 
-        const x = await fastify.pg.query<{ object_id: string; storage_id: string; version: bigint }>(
-          `SELECT *
-            FROM content_pointers cp
-            LEFT JOIN follows f ON f.followee_id = cp.user_id
-            WHERE cp.object_id = ANY($1::TEXT[]);`,
-          [objectIdStrings],
-        )
-
         reply
           .code(404)
           .type("application/cbor")
@@ -312,7 +332,6 @@ export async function registerContentRoutes(
           return { objectId, nonce, body, version }
         } catch (err) {
           if (isErrorWithName(err) && err.name === "NoSuchKey") {
-
             throw new FetchError(objectId)
           }
           throw err

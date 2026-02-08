@@ -1,5 +1,5 @@
-import { CiphersuiteImpl, ClientState, clientStateDecoder, decode } from "ts-mls"
-import { Manifest, PostManifest, PostManifestPage, StorageIdentifier, Versioned } from "./manifest"
+import { CiphersuiteImpl, ClientState } from "ts-mls"
+import { Manifest, PostManifest, PostManifestPage, StorageIdentifier, Entity } from "./manifest"
 import {
   RemoteStore,
   retrieveAndDecryptFollowerPostManifest,
@@ -11,7 +11,7 @@ import { getGroupStateIdFromManifest } from "./init"
 
 export async function getPageForUser(
   manifest: Manifest,
-  currentPage: Versioned<PostManifestPage>,
+  currentPage: Entity<PostManifestPage>,
   postManifest: PostManifest,
   masterKey: Uint8Array,
   userId: string,
@@ -20,13 +20,13 @@ export async function getPageForUser(
   ownGroupState: ClientState,
   rs: RemoteStore,
   impl: CiphersuiteImpl,
-): Promise<[[Versioned<PostManifestPage>, StorageIdentifier], PostManifest, ClientState] | undefined> {
+): Promise<[[Entity<PostManifestPage>, StorageIdentifier], PostManifest, ClientState] | undefined> {
   if (userId !== profileUserId) {
     const followerManifest = manifest.followerManifests.get(profileUserId)
     if (followerManifest) {
       const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
       const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-      const groupState = decode(clientStateDecoder, followerGroupState!.groupState)!
+      const groupState = followerGroupState!.groupState
       const [, pm, pmp] = await retrieveAndDecryptFollowerPostManifest(
         rs,
         groupState,
@@ -56,7 +56,7 @@ export async function getGroupStateForUser(
     if (followerManifest) {
       const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
       const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-      return decode(clientStateDecoder, followerGroupState!.groupState)
+      return followerGroupState!.groupState
     } else {
       return undefined
     }
@@ -79,9 +79,9 @@ export async function getPostManifestForUser(
     if (followerManifest) {
       const groupStateId = await getGroupStateIdFromManifest(manifest, profileUserId)
       const followerGroupState = await retrieveAndDecryptGroupState(rs, uint8ToBase64Url(groupStateId), masterKey)
-      const groupState = decode(clientStateDecoder, followerGroupState!.groupState)
+      const groupState = followerGroupState!.groupState
 
-      const [, pm] = await retrieveAndDecryptFollowerPostManifest(rs, groupState!, impl, followerManifest, masterKey)
+      const [, pm] = await retrieveAndDecryptFollowerPostManifest(rs, groupState, impl, followerManifest, masterKey)
       return pm
     } else {
       return undefined
@@ -92,11 +92,11 @@ export async function getPostManifestForUser(
 }
 
 export async function getPage(
-  currentPage: Versioned<PostManifestPage>,
+  currentPage: Entity<PostManifestPage>,
   postManifest: PostManifest,
   pageNumber: number,
   rs: RemoteStore,
-): Promise<[Versioned<PostManifestPage>, StorageIdentifier]> {
+): Promise<[Entity<PostManifestPage>, StorageIdentifier]> {
   const index = pageNumber
   if (currentPage.pageIndex == index) {
     return [currentPage, postManifest.currentPage]

@@ -1,7 +1,7 @@
 import * as opaque from "@serenity-kit/opaque"
 import { createAuthenticationClient } from "./http/authenticationClient.js"
 import { scryptAsync } from "@noble/hashes/scrypt"
-import { base64ToBytes, toBufferSource } from "ts-mls/util/byteArray.js"
+import { base64ToBytes, toBufferSource } from "ts-mls"
 
 export interface AuthenticationClient {
   register(input: { username: string; password: string }): Promise<{ userId: string }>

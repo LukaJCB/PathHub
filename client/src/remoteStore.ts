@@ -5,11 +5,12 @@ import {
   PostManifest,
   FollowerManifest,
   FollowerGroupState,
-  Versioned,
+  Entity,
+  NotArray,
 } from "./manifest"
 import { StorageClient } from "./http/storageClient"
 import { importAesKey, derivePostSecret } from "./createPost"
-import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { toBufferSource } from "ts-mls"
 import {
   decodePostManifestPage,
   decodeManifest,
@@ -30,6 +31,7 @@ export interface RemoteStore {
 
   batchStoreContent(
     payloads: Array<{ id: Uint8Array; content: Uint8Array; nonce: Uint8Array; version?: bigint }>,
+    extra: Uint8Array,
   ): Promise<void>
   // storeFollowRequest(followeeId: string, publicPackage: KeyPackage, privatePackage: PrivateKeyPackage): Promise<void>
 
@@ -50,14 +52,15 @@ export function createRemoteStore(client: StorageClient): RemoteStore {
       await client.putContent(storageId, content, nonce, version)
       return storageId
     },
-    async batchStoreContent(payloads) {
+    async batchStoreContent(payloads, extra) {
       await client.batchPut(
         payloads.map((p) => ({
           id: uint8ToBase64Url(p.id),
           body: p.content,
           nonce: p.nonce,
-          version: p.version
+          version: p.version,
         })),
+        extra,
       )
     },
     async getContent(storageId) {
@@ -103,13 +106,13 @@ export async function retrieveAndDecryptContent(
 export async function retreiveDecryptAndDecode<T>(
   rs: RemoteStore,
   id: StorageIdentifier,
-  dec: (b: Uint8Array) => T,
-): Promise<Versioned<T> | undefined> {
+  dec: (b: Uint8Array) => NotArray<T>,
+): Promise<Entity<T> | undefined> {
   try {
     const [buf, version] = await retrieveAndDecryptContent(rs, id)
     const result = dec(new Uint8Array(buf))
 
-    return { ...result, version }
+    return { ...result, version, storage: id }
   } catch (e) {
     //todo proper error handling
     return undefined
@@ -119,7 +122,7 @@ export async function retreiveDecryptAndDecode<T>(
 export async function retrieveAndDecryptPostManifestPage(
   rs: RemoteStore,
   id: StorageIdentifier,
-): Promise<Versioned<PostManifestPage> | undefined> {
+): Promise<Entity<PostManifestPage> | undefined> {
   return retreiveDecryptAndDecode<PostManifestPage>(rs, id, decodePostManifestPage)
 }
 
@@ -127,7 +130,7 @@ export async function retrieveAndDecryptGroupState(
   rs: RemoteStore,
   storageId: string,
   masterKey: Uint8Array,
-): Promise<Versioned<FollowerGroupState> | undefined> {
+): Promise<Entity<FollowerGroupState> | undefined> {
   return retreiveDecryptAndDecode<FollowerGroupState>(rs, [storageId, masterKey], decodeFollowerGroupState)
 }
 
@@ -135,14 +138,14 @@ export async function retrieveAndDecryptManifest(
   rs: RemoteStore,
   manifestId: string,
   masterKey: Uint8Array,
-): Promise<Versioned<Manifest> | undefined> {
+): Promise<Entity<Manifest> | undefined> {
   return retreiveDecryptAndDecode<Manifest>(rs, [manifestId, masterKey], decodeManifest)
 }
 
 export async function retrieveAndDecryptPostManifest(
   rs: RemoteStore,
   id: StorageIdentifier,
-): Promise<Versioned<PostManifest> | undefined> {
+): Promise<Entity<PostManifest> | undefined> {
   return retreiveDecryptAndDecode<PostManifest>(rs, id, decodePostManifest)
 }
 
@@ -152,7 +155,7 @@ export async function retrieveAndDecryptFollowerPostManifest(
   impl: CiphersuiteImpl,
   followerManifestId: Uint8Array,
   masterKey: Uint8Array,
-): Promise<[Versioned<FollowerManifest>, Versioned<PostManifest>, Versioned<PostManifestPage>]> {
+): Promise<[Entity<FollowerManifest>, Entity<PostManifest>, Entity<PostManifestPage>]> {
   const fm = await retreiveDecryptAndDecode(
     rs,
     [uint8ToBase64Url(followerManifestId), masterKey],

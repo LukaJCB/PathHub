@@ -1,16 +1,4 @@
-import {
-  CiphersuiteImpl,
-  ClientState,
-  clientStateDecoder,
-  mlsMessageDecoder,
-  clientStateEncoder,
-  processPrivateMessage,
-  MlsMessage,
-  wireformats,
-  decode,
-  unsafeTestingAuthenticationService,
-  encode,
-} from "ts-mls"
+import { mlsMessageDecoder, processPrivateMessage, MlsMessage, wireformats, decode, MlsContext } from "ts-mls"
 import { MessageClient } from "./http/messageClient"
 import { FollowRequests, processAllowFollow, receiveFollowRequest } from "./followRequest"
 import {
@@ -20,7 +8,9 @@ import {
   PostManifestPage,
   PostMeta,
   StorageIdentifier,
-  Versioned,
+  Entity,
+  FollowerGroupState,
+  updateEntity,
 } from "./manifest"
 import {
   RemoteStore,
@@ -35,24 +25,23 @@ import { interactOwnPost } from "./postInteraction"
 
 export async function processIncoming(
   client: MessageClient,
-  manifest: Versioned<Manifest>,
-  postManifest: Versioned<PostManifest>,
-  postManifestPage: Versioned<PostManifestPage>,
-  manifestId: Uint8Array,
-  ownGroupState: Versioned<ClientState>,
-  followRequests: Versioned<FollowRequests>,
+  manifest: Entity<Manifest>,
+  postManifest: Entity<PostManifest>,
+  postManifestPage: Entity<PostManifestPage>,
+  ownGroupState: Entity<FollowerGroupState>,
+  followRequests: Entity<FollowRequests>,
   userId: string,
   masterKey: Uint8Array,
   remoteStore: RemoteStore,
-  impl: CiphersuiteImpl,
+  mls: MlsContext,
 ): Promise<
   [
-    Versioned<FollowRequests>,
-    Versioned<Manifest>,
-    Versioned<PostManifest>,
-    Versioned<PostManifestPage>,
-    Versioned<FollowerManifest> | undefined,
-    Versioned<ClientState> | undefined,
+    Entity<FollowRequests>,
+    Entity<Manifest>,
+    Entity<PostManifest>,
+    Entity<PostManifestPage>,
+    Entity<FollowerManifest> | undefined,
+    Entity<FollowerGroupState> | undefined,
   ]
 > {
   const messages = await client.receiveMessages()
@@ -79,11 +68,10 @@ export async function processIncoming(
         postManifest,
         postManifestPage,
         currentManifest,
-        manifestId,
         masterKey,
         currentFollowRequests,
         remoteStore,
-        impl,
+        mls,
       )
 
       currentFollowRequests = result[0]
@@ -97,7 +85,6 @@ export async function processIncoming(
         mp.keyPackage,
         m.sender,
         currentFollowRequests,
-        manifest.followRequests,
         masterKey,
         remoteStore,
       )
@@ -124,25 +111,24 @@ export async function processIncoming(
 
 export async function processMlsMessage(
   msg: MlsMessage,
-  mlsGroup: Versioned<ClientState>,
+  mlsGroup: Entity<FollowerGroupState>,
   sender: string,
   userId: string,
-  postManifest: Versioned<PostManifest>,
-  postManifestPage: Versioned<PostManifestPage>,
-  manifest: Versioned<Manifest>,
-  manifestId: Uint8Array,
+  postManifest: Entity<PostManifest>,
+  postManifestPage: Entity<PostManifestPage>,
+  manifest: Entity<Manifest>,
   masterKey: Uint8Array,
-  followRequests: Versioned<FollowRequests>,
+  followRequests: Entity<FollowRequests>,
   remoteStore: RemoteStore,
-  impl: CiphersuiteImpl,
+  mls: MlsContext,
 ): Promise<
   [
-    Versioned<FollowRequests>,
-    Versioned<Manifest>,
-    Versioned<FollowerManifest> | undefined,
-    Versioned<ClientState> | undefined,
-    Versioned<PostManifestPage>,
-    Versioned<PostManifest>,
+    Entity<FollowRequests>,
+    Entity<Manifest>,
+    Entity<FollowerManifest> | undefined,
+    Entity<FollowerGroupState> | undefined, //own group state
+    Entity<PostManifestPage>,
+    Entity<PostManifest>,
   ]
 > {
   switch (msg.wireformat) {
@@ -153,9 +139,8 @@ export async function processMlsMessage(
         followRequests,
         masterKey,
         manifest,
-        manifestId,
         remoteStore,
-        impl,
+        mls,
       )
       return [result[0], result[1], result[2], undefined, postManifestPage, postManifest]
     }
@@ -166,12 +151,12 @@ export async function processMlsMessage(
         uint8ToBase64Url(groupStateId),
         masterKey,
       )
-      const groupState = decode(clientStateDecoder, followerGroupState!.groupState)!
+      const groupState = followerGroupState!.groupState
       //todo only allow commits from group owner
       const result = await processPrivateMessage({
         state: groupState,
         privateMessage: msg.privateMessage,
-        context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService },
+        context: mls,
       })
 
       if (result.kind === "applicationMessage") {
@@ -191,24 +176,16 @@ export async function processMlsMessage(
               meta,
               remoteStore,
               message.interaction,
-              mlsGroup,
-              impl,
+              mlsGroup.groupState,
+              mls,
               postManifestPage,
               pageId,
               postManifest,
               manifest,
-              manifestId,
               masterKey,
             )
 
-            return [
-              followRequests,
-              newManifest,
-              undefined,
-              { ...result.newState, version: followerGroupState!.version + 1n },
-              newPage,
-              newPostManifest,
-            ]
+            return [followRequests, newManifest, undefined, undefined, newPage, newPostManifest]
           } else {
             const interactions = followerGroupState!.cachedInteractions.get(message.interaction.postId) ?? []
 
@@ -217,7 +194,7 @@ export async function processMlsMessage(
             const newMap = followerGroupState?.cachedInteractions.set(message.interaction.postId, newInteractions)
 
             const newFollowerGroupState = {
-              groupState: encode(clientStateEncoder, result.newState),
+              groupState: result.newState,
               cachedInteractions: newMap!,
             }
 
@@ -226,13 +203,14 @@ export async function processMlsMessage(
               remoteStore,
               encodeFollowerGroupState(newFollowerGroupState),
               groupStateId,
+              followerGroupState!.version,
             )
           }
         }
       } else if (result.kind === "newState") {
         const newFollowerGroupState = {
           ...followerGroupState!,
-          groupState: encode(clientStateEncoder, result.newState),
+          groupState: result.newState,
           version: followerGroupState!.version + 1n,
         }
 
@@ -241,18 +219,18 @@ export async function processMlsMessage(
           remoteStore,
           encodeFollowerGroupState(newFollowerGroupState),
           groupStateId,
+          followerGroupState!.version,
         )
         //todo flush cachedInteractions whenever a new commit arrives
       }
 
-      return [
-        followRequests,
-        manifest,
-        undefined,
-        { ...result.newState, version: followerGroupState!.version + 1n },
-        postManifestPage,
-        postManifest,
-      ]
+      const [_newFollowerGroupStatePayload, newFollowerGroupState] = updateEntity(
+        mlsGroup,
+        { ...mlsGroup, groupState: result.newState },
+        encodeFollowerGroupState,
+      )
+
+      return [followRequests, manifest, undefined, newFollowerGroupState, postManifestPage, postManifest]
     }
     default: {
       //todo

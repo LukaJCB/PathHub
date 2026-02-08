@@ -32,8 +32,6 @@ interface Schema extends DBSchema {
   }
 }
 
-// todo store group states on the server as well as manifests, followRequests and content
-// post manifests can be stored locally
 export async function makeStore(userid: string): Promise<LocalStore> {
   const db = await openDB<Schema>(`ph-${userid}`, 1, {
     upgrade(db) {

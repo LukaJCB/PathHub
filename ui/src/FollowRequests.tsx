@@ -1,11 +1,11 @@
 import { useAuthRequired } from "./useAuth"
-import { base64urlToUint8, createRemoteStore, RemoteStore } from "pathhub-client/src/remoteStore.js"
+import { createRemoteStore, RemoteStore } from "pathhub-client/src/remoteStore.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { FormEvent, useEffect, useState } from "react"
 import { allowFollow, requestFollow } from "pathhub-client/src/followRequest.js"
-import { createCredential, getKeyPairFromGroupState } from "pathhub-client/src/init.js"
+import { createCredential } from "pathhub-client/src/init.js"
 import { createMessageClient, MessageClient } from "pathhub-client/src/http/messageClient.js"
-import { decode, getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
+import { decode } from "ts-mls"
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js"
 import { getUserInfo } from "pathhub-client/src/userInfo.js"
 import { getAvatarImageUrl } from "./App"
@@ -60,12 +60,11 @@ export const FollowRequestsView: React.FC = () => {
       user.currentPage,
       user.postManifest,
       user.manifest,
-      base64urlToUint8(user.manifestId),
+      user.ownGroupState,
       user.masterKey,
       remoteStore,
       messager,
-      user.ownGroupState,
-      await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+      user.mlsContext,
     )
     updateUser({
       manifest: newManifest,
@@ -85,13 +84,12 @@ export const FollowRequestsView: React.FC = () => {
       const newFollowRequests = await requestFollow(
         createCredential(user.id),
         userInfo.userid,
-        getKeyPairFromGroupState(user.ownGroupState),
+        user.keyPair,
         user.followRequests,
-        user.manifest.followRequests,
         user.masterKey,
         messager,
         remoteStore,
-        await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+        user.mlsContext.cipherSuite,
       )
 
       updateUser({ followRequests: newFollowRequests })

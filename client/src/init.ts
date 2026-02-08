@@ -1,16 +1,12 @@
 import {
-  CiphersuiteImpl,
   ClientState,
-  clientStateDecoder,
   createGroup,
   Credential,
-  decode,
   defaultCredentialTypes,
-  defaultCryptoProvider,
   defaultExtensionTypes,
   generateKeyPackage,
-  getCiphersuiteFromName,
   getCiphersuiteImpl,
+  MlsContext,
   RequiredCapabilities,
   unsafeTestingAuthenticationService,
 } from "ts-mls"
@@ -24,8 +20,10 @@ import {
   FollowerGroupState,
   IndexManifest,
   IndexCollection,
-  Versioned,
-  StorageIdentifier,
+  Entity,
+  newEntity,
+  newEntityWithId,
+  Payload,
 } from "./manifest"
 import {
   base64urlToUint8,
@@ -40,26 +38,28 @@ import { batchEncryptAndStoreWithSecrets, derivePostSecret } from "./createPost"
 import {
   encodePostManifestPage,
   encodeFollowRequests,
-  encodeClientState,
   encodeManifest,
   encodePostManifest,
   encodeFollowerGroupState,
 } from "./codec/encode"
 import { getRandomAvatar } from "@fractalsoftware/random-avatar-generator"
-import { isDefaultCredential } from "ts-mls/credential.js"
-import { getOwnLeafNode } from "ts-mls/clientState.js"
+import { isDefaultCredential } from "ts-mls"
+import { getOwnLeafNode } from "ts-mls"
+import { FollowRequests } from "./followRequest"
 
 export interface SignatureKeyPair {
   signKey: Uint8Array
   publicKey: Uint8Array
 }
 
-export async function initGroupState(userId: string): Promise<[ClientState, SignatureKeyPair]> {
+export async function initMlsContext(): Promise<MlsContext> {
+  const impl = await getCiphersuiteImpl("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")
+  return { cipherSuite: impl, authService: unsafeTestingAuthenticationService, clientConfig }
+}
+
+export async function initGroupState(userId: string): Promise<[ClientState, SignatureKeyPair, MlsContext]> {
   const credential: Credential = createCredential(userId)
-  const impl = await getCiphersuiteImpl(
-    getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"),
-    defaultCryptoProvider,
-  )
+  const context = await initMlsContext()
 
   const requiredCapabilities: RequiredCapabilities = {
     extensionTypes: [],
@@ -69,7 +69,7 @@ export async function initGroupState(userId: string): Promise<[ClientState, Sign
 
   const kp = await generateKeyPackage({
     credential,
-    cipherSuite: impl,
+    cipherSuite: context.cipherSuite,
   })
 
   const groupId = await deriveGroupIdFromUserId(userId)
@@ -79,14 +79,14 @@ export async function initGroupState(userId: string): Promise<[ClientState, Sign
     keyPackage: kp.publicPackage,
     privateKeyPackage: kp.privatePackage,
     extensions: [{ extensionType: defaultExtensionTypes.required_capabilities, extensionData: requiredCapabilities }],
-    context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService, clientConfig },
+    context,
   })
 
   const keyPair = {
     signKey: kp.privatePackage.signaturePrivateKey,
     publicKey: kp.publicPackage.leafNode.signaturePublicKey,
   }
-  return [group, keyPair]
+  return [group, keyPair, context]
 }
 
 export function createCredential(userId: string): Credential {
@@ -113,7 +113,14 @@ export async function getOrCreateManifest(
   masterKey: Uint8Array,
   rs: RemoteStore,
 ): Promise<
-  [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, Versioned<ClientState>, SignatureKeyPair]
+  [
+    Entity<Manifest>,
+    Entity<PostManifest>,
+    Entity<PostManifestPage>,
+    Entity<FollowerGroupState>,
+    SignatureKeyPair,
+    MlsContext,
+  ]
 > {
   const y = await retrieveAndDecryptManifest(rs, manifestId, masterKey)
   if (y) {
@@ -122,67 +129,57 @@ export async function getOrCreateManifest(
       retrieveAndDecryptGroupState(rs, uint8ToBase64Url(await getGroupStateIdFromManifest(y, userId)), masterKey),
     ])
 
-    const groupState = decode(clientStateDecoder, followerGroupState!.groupState)!
+    const groupState = followerGroupState!.groupState
 
-    return [
-      y,
-      postManifest!,
-      page!,
-      { ...groupState, version: followerGroupState!.version },
-      getKeyPairFromGroupState(groupState),
-    ]
+    return [y, postManifest!, page!, followerGroupState!, getKeyPairFromGroupState(groupState), await initMlsContext()]
   } else {
-    const page: Versioned<PostManifestPage> = {
-      pageIndex: 0,
-      posts: [],
-      version: 0n,
-    }
+    const [groupState, keyPair, mlsContext] = await initGroupState(userId)
 
-    const [groupState, keyPair] = await initGroupState(userId)
+    const impl = await getCiphersuiteImpl("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")
 
-    const followerGroupState: FollowerGroupState = {
-      groupState: encodeClientState(groupState),
-      cachedInteractions: new Map(),
-    }
+    const postSecret = await derivePostSecret(groupState, impl)
 
-    const gmStorageId = crypto.getRandomValues(new Uint8Array(32))
-    const frStorageId = crypto.getRandomValues(new Uint8Array(32))
+    const [pagePayload, page] = newEntity<PostManifestPage>(
+      {
+        pageIndex: 0,
+        posts: [],
+      },
+      postSecret,
+      encodePostManifestPage,
+    )
 
-    const impl = await getCiphersuiteImpl(
-      getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"),
-      defaultCryptoProvider,
+    const [groupStatePayload, followerGroupState] = newEntity<FollowerGroupState>(
+      {
+        groupState: groupState,
+        cachedInteractions: new Map(),
+      },
+      masterKey,
+      encodeFollowerGroupState,
+    )
+
+    const [followRequestsPayload, followRequests] = newEntity<FollowRequests>(
+      { incoming: [], outgoing: [] },
+      masterKey,
+      encodeFollowRequests,
     )
 
     const avatar = new TextEncoder().encode(getRandomAvatar(5, "circle"))
 
     const [manifest, postManifest, payloads] = await initManifest(
       groupState,
-      impl,
+      postSecret,
       page,
-      gmStorageId,
-      frStorageId,
+      followerGroupState,
+      followRequests,
       masterKey,
       manifestId,
     )
 
-    payloads.push(
-      {
-        postSecret: masterKey,
-        storageId: gmStorageId,
-        content: encodeFollowerGroupState(followerGroupState),
-        version: 0n,
-      },
-      {
-        postSecret: masterKey,
-        storageId: frStorageId,
-        content: encodeFollowRequests({ incoming: [], outgoing: [] }),
-        version: 0n,
-      },
-    )
+    payloads.push(pagePayload, groupStatePayload, followRequestsPayload)
 
     await Promise.all([rs.client.putAvatar(avatar, "image/svg+xml"), batchEncryptAndStoreWithSecrets(rs, payloads)])
 
-    return [manifest, postManifest, page, { ...groupState, version: 0n }, keyPair]
+    return [manifest, postManifest, page, followerGroupState, keyPair, mlsContext]
   }
 }
 
@@ -190,68 +187,43 @@ export async function getGroupStateIdFromManifest(y: Manifest, userId: string): 
   return y.groupStates.get(uint8ToBase64Url(await deriveGroupIdFromUserId(userId)))!
 }
 
-interface Payload { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }
-
-export function newVersion<T>(t: T, id: StorageIdentifier, enc: (t: T) => Uint8Array): [Payload, Versioned<T>] {
-
-  const payload = {
-    postSecret: id[1],
-    storageId: base64urlToUint8(id[0]),
-    content: enc(t),
-    version: 0n,
-  }
-
-  return [payload, {...t, version: 1n}]
-}
-
-export function updateWithVersion<T>(old: Versioned<T>, updated: T, id: StorageIdentifier, enc: (t: T) => Uint8Array): [Payload, Versioned<T>] {
-  const newVersion = old.version + 1n
-  const payload = {
-    postSecret: id[1],
-    storageId: base64urlToUint8(id[0]),
-    content: enc(updated),
-    version: old.version + 1n,
-  }
-
-  return [payload, {...updated, version: newVersion}]
-}
-
 async function initManifest(
   groupState: ClientState,
-  impl: CiphersuiteImpl,
-  page: PostManifestPage,
-  gmStorageId: Uint8Array,
-  frStorageId: Uint8Array,
+  postSecret: Uint8Array,
+  page: Entity<PostManifestPage>,
+  followerGroupState: Entity<FollowerGroupState>,
+  followRequests: Entity<FollowRequests>,
   masterKey: Uint8Array,
   manifestId: string,
 ): Promise<
   [
-    Versioned<Manifest>,
-    Versioned<PostManifest>,
+    Entity<Manifest>,
+    Entity<PostManifest>,
     { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }[],
   ]
 > {
   const payloads: { postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }[] = []
-  const [pm, pmStorage] = await initPostManifest(groupState, impl, page, payloads)
+  const [postManifest, postManifestPayload] = await initPostManifest(postSecret, page)
   const indexesStorage = await initIndexManifest(masterKey, payloads)
 
-  const manifest: Versioned<Manifest> = {
-    postManifest: pmStorage,
-    indexes: indexesStorage,
-    groupStates: new Map([[uint8ToBase64Url(groupState.groupContext.groupId), gmStorageId] as const]),
-    followerManifests: new Map(),
-    followRequests: frStorageId,
-    version: 1n,
-  }
+  console.log(page)
 
-  payloads.push({
-    postSecret: masterKey,
-    storageId: base64urlToUint8(manifestId),
-    content: encodeManifest(manifest),
-    version: 0n,
-  })
+  const [manifestPayload, manifest] = newEntityWithId<Manifest>(
+    {
+      postManifest: postManifest.storage,
+      indexes: indexesStorage,
+      groupStates: new Map([
+        [uint8ToBase64Url(groupState.groupContext.groupId), base64urlToUint8(followerGroupState.storage[0])] as const,
+      ]),
+      followerManifests: new Map(),
+      followRequests: base64urlToUint8(followRequests.storage[0]),
+    },
+    masterKey,
+    base64urlToUint8(manifestId),
+    encodeManifest,
+  )
 
-  return [manifest, pm, payloads]
+  return [manifest, postManifest, [...payloads, postManifestPayload, manifestPayload]]
 }
 
 async function initIndexManifest(
@@ -341,44 +313,33 @@ async function initIndexManifest(
 }
 
 async function initPostManifest(
-  groupState: ClientState,
-  impl: CiphersuiteImpl,
-  page: PostManifestPage,
-  payloads: Array<{ postSecret: Uint8Array; storageId: Uint8Array; content: Uint8Array; version: bigint }>,
-): Promise<[Versioned<PostManifest>, [string, Uint8Array]]> {
-  const postSecret = await derivePostSecret(groupState, impl)
-
-  const pageObjectId = crypto.getRandomValues(new Uint8Array(32))
-  const pageStorage: [string, Uint8Array] = [uint8ToBase64Url(pageObjectId), postSecret]
-
-  payloads.push({ postSecret, storageId: pageObjectId, content: encodePostManifestPage(page), version: 0n })
-
-  const postManifest: Versioned<PostManifest> = {
-    pages: [],
-    currentPage: pageStorage,
-    totals: {
-      totalPosts: 0,
-      totalDerivedMetrics: {
-        distance: 0,
-        elevation: 0,
-        duration: 0,
+  postSecret: Uint8Array,
+  page: Entity<PostManifestPage>,
+): Promise<[Entity<PostManifest>, Payload]> {
+  const [payload, postManifest] = newEntity<PostManifest>(
+    {
+      pages: [],
+      currentPage: page.storage,
+      totals: {
+        totalPosts: 0,
+        totalDerivedMetrics: {
+          distance: 0,
+          elevation: 0,
+          duration: 0,
+        },
       },
     },
-    version: 1n,
-  }
+    postSecret,
+    encodePostManifest,
+  )
 
-  const postManifestObjectId = crypto.getRandomValues(new Uint8Array(32))
-  const postManifestStorage: [string, Uint8Array] = [uint8ToBase64Url(postManifestObjectId), postSecret]
-
-  payloads.push({ postSecret, storageId: postManifestObjectId, content: encodePostManifest(postManifest), version: 0n })
-
-  return [postManifest, postManifestStorage] as const
+  return [postManifest, payload] as const
 }
 
 async function retrievePostManifestAndPage(
   rs: RemoteStore,
   y: Manifest,
-): Promise<[Versioned<PostManifest> | undefined, Versioned<PostManifestPage> | undefined]> {
+): Promise<[Entity<PostManifest> | undefined, Entity<PostManifestPage> | undefined]> {
   const postManifest = await retrieveAndDecryptPostManifest(rs, y.postManifest)
   const page = await retrieveAndDecryptPostManifestPage(rs, postManifest!.currentPage)
   return [postManifest, page]

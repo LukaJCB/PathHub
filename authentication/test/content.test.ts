@@ -75,18 +75,29 @@ describe("MinIO content upload and fetch", () => {
     await app.close()
   })
 
-  async function upload(objectId: Buffer, binaryContent: Buffer, nonce: Buffer, token: string, version: bigint = 0n) {
+  async function upload(
+    objectId: Buffer,
+    binaryContent: Buffer,
+    nonce: Buffer,
+    token: string,
+    version: bigint = 0n,
+    extra: Buffer = Buffer.alloc(0),
+  ) {
     const objectIdString = objectId.toString("base64url")
-    // [magic: 4 bytes][version: 2 bytes]
-    // [nonce_len: u16][nonce]
-    // [id_len: u16][id]
-    // [version: u64]
-    // [blob_len: u64][blob]
-    const magic = 0xdaab0000
+    // [u32 magic][u16 version]
+    // [u32 extra_len]
+    // if extra_len > 0:
+    //   [extra bytes]
+    // repeat:
+    //   [u16 nonce_len][nonce]
+    //   [u16 id_len][id]
+    //   [u64 version]
+    //   [u64 blob_len][blob bytes]
+    const magic = 0x00000001
     const protocolVersion = 1
     // Use base64url decode/encode for idBytes
     const idBytes = Buffer.from(objectIdString, "base64url")
-    const totalSize = 4 + 2 + 2 + nonce.length + 2 + idBytes.length + 8 + 8 + binaryContent.length
+    const totalSize = 4 + 2 + 4 + extra.length + 2 + nonce.length + 2 + idBytes.length + 8 + 8 + binaryContent.length
     const buf = Buffer.alloc(totalSize)
     let offset = 0
 
@@ -94,6 +105,11 @@ describe("MinIO content upload and fetch", () => {
     offset += 4
     buf.writeUInt16BE(protocolVersion, offset)
     offset += 2
+
+    buf.writeUint32BE(extra.byteLength, offset)
+    offset += 4
+    extra.copy(buf, offset)
+    offset += extra.byteLength
 
     buf.writeUInt16BE(nonce.length, offset)
     offset += 2

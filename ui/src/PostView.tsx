@@ -3,18 +3,12 @@ import {
   PostManifestPage,
   PostMeta,
   StorageIdentifier,
-  Versioned,
+  Entity,
 } from "pathhub-client/src/manifest.js"
 import { FormEvent, useEffect, useState } from "react"
 import { useAuthRequired } from "./useAuth"
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
 import { Link, useParams } from "react-router"
-import {
-  base64urlToUint8,
-  createRemoteStore,
-  retrieveAndDecryptContent,
-  uint8ToBase64Url,
-} from "pathhub-client/src/remoteStore.js"
+import { createRemoteStore, retrieveAndDecryptContent, uint8ToBase64Url } from "pathhub-client/src/remoteStore.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { commentPost, likePost, unlikePost } from "pathhub-client/src/postInteraction.js"
 import { decodeComments, decodeLikes, decodeRoute } from "pathhub-client/src/codec/decode.js"
@@ -37,9 +31,7 @@ export const PostView = () => {
   const messager: MessageClient = createMessageClient("/messaging", user.token)
   const [canView, setCanView] = useState(true)
   const [post, setPost] = useState<PostMeta | null>(null)
-  const [postManifestPage, setPostManifestPage] = useState<[Versioned<PostManifestPage>, StorageIdentifier] | null>(
-    null,
-  )
+  const [postManifestPage, setPostManifestPage] = useState<[Entity<PostManifestPage>, StorageIdentifier] | null>(null)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [comments, setComments] = useState<InteractionComment[]>([])
   const [likes, setLikes] = useState(0)
@@ -62,9 +54,9 @@ export const PostView = () => {
         user.id,
         profileUserId,
         page,
-        user.ownGroupState,
+        user.ownGroupState.groupState,
         rs,
-        await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+        user.mlsContext.cipherSuite,
       )
 
       if (!result) {
@@ -99,12 +91,12 @@ export const PostView = () => {
         setImageUrls(urls)
 
         setGpxData(decodeRoute(new Uint8Array(fetchedPost)))
-        const decodedComments = comments ? decodeComments(new Uint8Array(comments[0])) : []
-        setComments(decodedComments.sort((a, b) => a.date - b.date))
+        const decodedComments = comments ? decodeComments(new Uint8Array(comments[0])) : { comments: [] }
+        setComments(decodedComments.comments.sort((a, b) => a.date - b.date))
 
         if (likes) {
           const ls = decodeLikes(new Uint8Array(likes[0]))
-          setUserHasLiked(ls.some((l) => l.author === user.id))
+          setUserHasLiked(ls.likes.some((l) => l.author === user.id))
         }
 
         setLikes(p!.totalLikes)
@@ -160,7 +152,7 @@ export const PostView = () => {
       post!,
       profileUserId,
       (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
-      user.ownGroupState,
+      user.ownGroupState.groupState,
       user.id,
       rs,
       messager,
@@ -168,9 +160,8 @@ export const PostView = () => {
       postManifestPage![1],
       user.postManifest,
       user.manifest,
-      base64urlToUint8(user.manifestId),
       user.masterKey,
-      await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+      user.mlsContext,
     )
 
     setComments([...comments, interaction])
@@ -190,7 +181,7 @@ export const PostView = () => {
     const { newManifest, interaction: _like } = await likePost(
       post!,
       (await crypto.subtle.generateKey("Ed25519", false, ["sign"])).privateKey, //todo
-      user.ownGroupState,
+      user.ownGroupState.groupState,
       isOwnPost,
       user.id,
       rs,
@@ -198,9 +189,8 @@ export const PostView = () => {
       postManifestPage![1],
       user.postManifest,
       user.manifest,
-      base64urlToUint8(user.manifestId),
       user.masterKey,
-      await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+      user.mlsContext,
     )
 
     if (newManifest) {
@@ -217,7 +207,7 @@ export const PostView = () => {
     setUserHasLiked(false)
     const { newManifest } = await unlikePost(
       post!,
-      user.ownGroupState,
+      user.ownGroupState.groupState,
       isOwnPost,
       user.id,
       rs,
@@ -225,9 +215,8 @@ export const PostView = () => {
       postManifestPage![1],
       user.postManifest,
       user.manifest,
-      base64urlToUint8(user.manifestId),
       user.masterKey,
-      await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+      user.mlsContext,
     )
 
     if (newManifest) {

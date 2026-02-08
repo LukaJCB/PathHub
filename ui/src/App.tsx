@@ -4,10 +4,10 @@ import { Link } from "react-router"
 import { getTimeline, TimelineItem } from "pathhub-client/src/timeline.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { createRemoteStore } from "pathhub-client/src/remoteStore.js"
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
+import { getCiphersuiteImpl } from "ts-mls"
 import { getUserInfo, UserInfo } from "pathhub-client/src/userInfo.js"
 import { PostPreview } from "./PostPreview.js"
-import { bytesToArrayBuffer } from "ts-mls/util/byteArray.js"
+import { bytesToArrayBuffer } from "ts-mls"
 import { createAuthenticationClient } from "pathhub-client/src/http/authenticationClient.js"
 
 export function getAvatarImageUrl(userInfo: UserInfo): string | undefined {
@@ -42,7 +42,7 @@ function App() {
         user.currentPage,
         user.masterKey,
         rs,
-        await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+        await getCiphersuiteImpl("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"),
       )
       setPosts(posts)
 

@@ -8,19 +8,11 @@ import {
   InteractionComment,
   InteractionLike,
   Interaction,
-  Versioned,
+  Entity,
+  Comments,
+  Likes,
 } from "./manifest"
-import {
-  CiphersuiteImpl,
-  ClientState,
-  createApplicationMessage,
-  encode,
-  unsafeTestingAuthenticationService,
-  clientStateDecoder,
-  clientStateEncoder,
-  decode,
-  mlsMessageEncoder,
-} from "ts-mls"
+import { ClientState, createApplicationMessage, encode, mlsMessageEncoder, MlsContext } from "ts-mls"
 import { encryptAndStore, encryptAndStoreWithPostSecret, replaceInPage } from "./createPost"
 import {
   base64urlToUint8,
@@ -29,7 +21,7 @@ import {
   retrieveAndDecryptGroupState,
   uint8ToBase64Url,
 } from "./remoteStore"
-import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { toBufferSource } from "ts-mls"
 import {
   encodeComments,
   encodeCommentTbs,
@@ -53,15 +45,14 @@ export async function commentPost(
   authorId: string,
   remoteStore: RemoteStore,
   messageClient: MessageClient,
-  page: Versioned<PostManifestPage>,
+  page: Entity<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: Versioned<PostManifest>,
-  manifest: Versioned<Manifest>,
-  manifestId: Uint8Array,
+  postManifest: Entity<PostManifest>,
+  manifest: Entity<Manifest>,
   masterKey: Uint8Array,
-  impl: CiphersuiteImpl,
+  mls: MlsContext,
 ): Promise<{
-  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+  newManifest: [Entity<Manifest>, Entity<PostManifest>, Entity<PostManifestPage>, PostMeta] | undefined
   interaction: InteractionComment
 }> {
   const commentTbs: CommentTbs = {
@@ -79,12 +70,11 @@ export async function commentPost(
       remoteStore,
       comment,
       ownGroupState,
-      impl,
+      mls,
       page,
       pageId,
       postManifest,
       manifest,
-      manifestId,
       masterKey,
     )
   } else {
@@ -100,9 +90,9 @@ export async function commentPost(
       uint8ToBase64Url(followerGroupStateId),
       masterKey,
     )
-    const groupState = decode(clientStateDecoder, followerGroupState!.groupState)!
+    const groupState = followerGroupState!.groupState
     const res = await createApplicationMessage({
-      context: { cipherSuite: impl, authService: unsafeTestingAuthenticationService },
+      context: mls,
       state: groupState,
       message: encodeMessage(msg),
     })
@@ -114,7 +104,7 @@ export async function commentPost(
 
     const newFollowerGroupState: FollowerGroupState = {
       ...followerGroupState!,
-      groupState: encode(clientStateEncoder, res.newState),
+      groupState: res.newState,
     }
 
     await Promise.all([
@@ -127,6 +117,7 @@ export async function commentPost(
         remoteStore,
         encodeFollowerGroupState(newFollowerGroupState),
         followerGroupStateId,
+        followerGroupState!.version,
       ),
     ])
 
@@ -139,15 +130,14 @@ export async function interactOwnPost<T extends Interaction>(
   remoteStore: RemoteStore,
   interaction: T,
   ownGroupState: ClientState,
-  impl: CiphersuiteImpl,
-  page: Versioned<PostManifestPage>,
+  mls: MlsContext,
+  page: Entity<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: Versioned<PostManifest>,
-  manifest: Versioned<Manifest>,
-  manifestId: Uint8Array,
+  postManifest: Entity<PostManifest>,
+  manifest: Entity<Manifest>,
   masterKey: Uint8Array,
 ): Promise<{
-  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta]
+  newManifest: [Entity<Manifest>, Entity<PostManifest>, Entity<PostManifestPage>, PostMeta]
   interaction: T
 }> {
   let newMeta: PostMeta
@@ -159,7 +149,7 @@ export async function interactOwnPost<T extends Interaction>(
     //todo combine this with the below replaceInPage into a single transaction
     const storageIdentifier = await encryptAndStore(
       ownGroupState,
-      impl,
+      mls,
       remoteStore,
       commentsEncoded,
       commentsVersion,
@@ -180,7 +170,7 @@ export async function interactOwnPost<T extends Interaction>(
     //todo combine this with the below replaceInPage into a single transaction
     const storageIdentifier = await encryptAndStore(
       ownGroupState,
-      impl,
+      mls,
       remoteStore,
       likesEncoded,
       likesVersion,
@@ -189,7 +179,7 @@ export async function interactOwnPost<T extends Interaction>(
 
     newMeta = {
       ...meta,
-      totalLikes: likes.length,
+      totalLikes: likes.likes.length,
       sampleLikes: [...meta.sampleLikes.slice(1, meta.sampleLikes.length), interaction],
       likes: storageIdentifier,
     }
@@ -198,12 +188,11 @@ export async function interactOwnPost<T extends Interaction>(
   //todo send mls message to everyone who has previously commented on the post
   const [newPage, newPostManifest, newManifest] = await replaceInPage(
     ownGroupState,
-    impl,
+    mls,
     page,
     pageId,
     postManifest,
     manifest,
-    manifestId,
     masterKey,
     newMeta,
     remoteStore,
@@ -216,13 +205,14 @@ export async function updateCommentList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   comment: InteractionComment,
-): Promise<[InteractionComment[], bigint]> {
+): Promise<[Comments, bigint]> {
   if (meta.comments) {
     const decoded = await retreiveDecryptAndDecode(remoteStore, meta.comments, decodeComments)
 
-    return [[comment, ...decoded!], decoded!.version]
+    console.log(decoded)
+    return [{ comments: [comment, ...decoded!.comments] }, decoded!.version]
   } else {
-    return [[comment], 0n]
+    return [{ comments: [comment] }, 0n]
   }
 }
 
@@ -233,16 +223,15 @@ export async function likePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  page: Versioned<PostManifestPage>,
+  page: Entity<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: Versioned<PostManifest>,
-  manifest: Versioned<Manifest>,
-  manifestId: Uint8Array,
+  postManifest: Entity<PostManifest>,
+  manifest: Entity<Manifest>,
   masterKey: Uint8Array,
-  impl: CiphersuiteImpl,
+  mls: MlsContext,
 ): Promise<{
   interaction: InteractionLike
-  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+  newManifest: [Entity<Manifest>, Entity<PostManifest>, Entity<PostManifestPage>, PostMeta] | undefined
 }> {
   const likeTbs: LikeTbs = {
     postId: meta.main[0],
@@ -262,12 +251,11 @@ export async function likePost(
       remoteStore,
       like,
       mlsGroup,
-      impl,
+      mls,
       page,
       pageId,
       postManifest,
       manifest,
-      manifestId,
       masterKey,
     )
   }
@@ -281,15 +269,14 @@ export async function unlikePost(
   ownPost: boolean,
   authorId: string,
   remoteStore: RemoteStore,
-  page: Versioned<PostManifestPage>,
+  page: Entity<PostManifestPage>,
   pageId: StorageIdentifier,
-  postManifest: Versioned<PostManifest>,
-  manifest: Versioned<Manifest>,
-  manifestId: Uint8Array,
+  postManifest: Entity<PostManifest>,
+  manifest: Entity<Manifest>,
   masterKey: Uint8Array,
-  impl: CiphersuiteImpl,
+  mls: MlsContext,
 ): Promise<{
-  newManifest: [Versioned<Manifest>, Versioned<PostManifest>, Versioned<PostManifestPage>, PostMeta] | undefined
+  newManifest: [Entity<Manifest>, Entity<PostManifest>, Entity<PostManifestPage>, PostMeta] | undefined
 }> {
   //todo send unlike to mls group
 
@@ -301,7 +288,7 @@ export async function unlikePost(
     //todo combine this with the below replaceInPage into a single transaction
     const storageIdentifier = await encryptAndStore(
       mlsGroup,
-      impl,
+      mls,
       remoteStore,
       likesEncoded,
       likesVersion,
@@ -310,19 +297,18 @@ export async function unlikePost(
 
     const newMeta: PostMeta = {
       ...meta,
-      totalLikes: likes.length,
+      totalLikes: likes.likes.length,
       sampleLikes: meta.sampleLikes.filter((l) => l.author !== authorId),
       likes: storageIdentifier,
     }
 
     const [newPage, newPostManifest, newManifest] = await replaceInPage(
       mlsGroup,
-      impl,
+      mls,
       page,
       pageId,
       postManifest,
       manifest,
-      manifestId,
       masterKey,
       newMeta,
       remoteStore,
@@ -338,13 +324,13 @@ export async function updateLikeList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   like: InteractionLike,
-): Promise<[InteractionLike[], bigint]> {
+): Promise<[Likes, bigint]> {
   if (meta.likes) {
     const decoded = await retreiveDecryptAndDecode(remoteStore, meta.likes, decodeLikes)
 
-    return [[like, ...decoded!], decoded!.version]
+    return [{ likes: [like, ...decoded!.likes] }, decoded!.version]
   } else {
-    return [[like], 0n]
+    return [{ likes: [like] }, 0n]
   }
 }
 
@@ -352,11 +338,11 @@ async function removeFromLikeList(
   meta: PostMeta,
   remoteStore: RemoteStore,
   authorId: string,
-): Promise<[InteractionLike[], bigint]> {
+): Promise<[Likes, bigint]> {
   if (meta.likes) {
     const decoded = await retreiveDecryptAndDecode(remoteStore, meta.likes, decodeLikes)
 
-    return [decoded!.filter((l) => l.author !== authorId), decoded!.version]
+    return [{ likes: decoded!.likes.filter((l) => l.author !== authorId) }, decoded!.version]
   } else {
     return Promise.reject(new Error("Could not retrieve likes from remote store"))
   }

@@ -7,12 +7,15 @@ import {
   FollowerGroupState,
   InteractionLike,
   InteractionComment,
+  Comments,
+  Likes,
 } from "../manifest"
 import { CommentTbs, LikeTbs } from "../postInteraction"
 import { ClientState, clientStateEncoder, PrivateKeyPackage, encode as encodeMls } from "ts-mls"
 
 import { FollowRequests } from "../followRequest"
 import { Message, MessagePublic } from "../message"
+import { ExtraInstruction } from "../createPost"
 
 export function encodePostManifestPage(pm: PostManifestPage): Uint8Array {
   return encode(pm)
@@ -22,7 +25,7 @@ export function encodeComment(c: InteractionComment): Uint8Array {
   return encode(c)
 }
 
-export function encodeComments(cs: InteractionComment[]): Uint8Array {
+export function encodeComments(cs: Comments): Uint8Array {
   return encode(cs)
 }
 
@@ -34,7 +37,7 @@ export function encodeLike(l: InteractionLike): Uint8Array {
   return encode(l)
 }
 
-export function encodeLikes(ls: InteractionLike[]): Uint8Array {
+export function encodeLikes(ls: Likes): Uint8Array {
   return encode(ls)
 }
 
@@ -51,7 +54,8 @@ export function encodeClientState(gs: ClientState): Uint8Array {
 }
 
 export function encodeFollowerGroupState(fgs: FollowerGroupState): Uint8Array {
-  return encode(fgs)
+  const withEncoded = { groupState: encodeClientState(fgs.groupState), cachedInteractions: fgs.cachedInteractions }
+  return encode(withEncoded)
 }
 
 export function encodeFollowRequests(reqs: FollowRequests): Uint8Array {
@@ -64,6 +68,10 @@ export function encodePrivateKeyPackage(pkp: PrivateKeyPackage): Uint8Array {
 }
 
 export function encodePostManifest(m: PostManifest): Uint8Array {
+  return encode(m)
+}
+
+export function encodeExtraInstruction(m: ExtraInstruction): Uint8Array {
   return encode(m)
 }
 

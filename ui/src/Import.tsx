@@ -10,13 +10,11 @@ import {
   ParseResult,
   parseTcxData,
 } from "./FileUploader"
-import { base64urlToUint8, createRemoteStore } from "pathhub-client/src/remoteStore.js"
+import { createRemoteStore } from "pathhub-client/src/remoteStore.js"
 import { createContentClient } from "pathhub-client/src/http/storageClient.js"
 import { useAuthRequired } from "./useAuth"
 import { createPost } from "pathhub-client/src/createPost.js"
-import { makeStore } from "pathhub-client/src/indexedDbStore.js"
 import { MessageClient } from "pathhub-client/src/http/messageClient.js"
-import { getCiphersuiteFromName, getCiphersuiteImpl } from "ts-mls"
 import { encodeRoute } from "pathhub-client/src/codec/encode.js"
 import { encodeBlobWithMime } from "pathhub-client/src/imageEncoding.js"
 import { ThumbnailRenderer } from "./ThumbnailRenderer"
@@ -201,7 +199,6 @@ export function BulkImport() {
       } else return acc
     }, {})
 
-    const ls = await makeStore(user.id)
     const rs = createRemoteStore(createContentClient("/storage", user.token))
 
     const profilePic = entries.find((e) => e.filename === "profile.jpg")!
@@ -302,13 +299,11 @@ export function BulkImport() {
         user.id,
         currentPage,
         currentPostManifest,
-        user.ownGroupState,
+        currentGroup,
         currentManifest,
-        base64urlToUint8(user.manifestId),
-        ls,
         rs,
         null as any as MessageClient,
-        await getCiphersuiteImpl(getCiphersuiteFromName("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519")),
+        user.mlsContext,
         user.masterKey,
       )
       currentPage = newPage

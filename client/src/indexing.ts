@@ -6,7 +6,7 @@ import {
   PostLocatorEntry,
   PostMeta,
   PostReference,
-  Versioned,
+  Entity,
 } from "./manifest.js"
 import { RemoteStore, retreiveDecryptAndDecode, retrieveAndDecryptContent, uint8ToBase64Url } from "./remoteStore.js"
 
@@ -22,7 +22,7 @@ export async function getAllIndexes(
   manifest: Manifest,
   masterKey: Uint8Array,
   rs: RemoteStore,
-): Promise<[IndexCollection, Versioned<IndexManifest>]> {
+): Promise<[IndexCollection, Entity<IndexManifest>]> {
   const idxManifest = await retreiveDecryptAndDecode<IndexManifest>(
     rs,
     [uint8ToBase64Url(manifest.indexes), masterKey],

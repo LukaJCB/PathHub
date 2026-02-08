@@ -1,11 +1,14 @@
 import { encode, decode } from "cbor-x"
-import { toBufferSource } from "ts-mls/util/byteArray.js"
+import { toBufferSource } from "ts-mls"
 import { base64urlToUint8, uint8ToBase64Url } from "../remoteStore"
 
 export interface StorageClient {
   putContent(objectId: string, body: Uint8Array, nonce: Uint8Array, version?: bigint): Promise<void>
 
-  batchPut(payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array; version?: bigint }>): Promise<void>
+  batchPut(
+    payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array; version?: bigint }>,
+    extra?: Uint8Array,
+  ): Promise<void>
 
   batchGetContent(
     objectIds: Uint8Array[],
@@ -23,6 +26,7 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
 
   async function batchPut(
     payloads: Array<{ id: string; body: Uint8Array; nonce: Uint8Array; version?: bigint }>,
+    extra: Uint8Array = new Uint8Array(),
   ): Promise<void> {
     console.log(payloads)
     const headers = {
@@ -30,11 +34,19 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
       Authorization: `Bearer ${authToken}`,
     }
 
-    // [magic][version] then repeated payloads
-    const magic = 0xdaab0000
+    // [u32 magic][u16 version]
+    // [u32 extra_len]
+    // if extra_len > 0:
+    //   [extra bytes]
+    // repeat:
+    //   [u16 nonce_len][nonce]
+    //   [u16 id_len][id]
+    //   [u64 version]
+    //   [u64 blob_len][blob bytes]
+    const magic = 0x00000001
     const version = 1
 
-    let totalSize = 4 + 2
+    let totalSize = 4 + 2 + 4 + extra.length
     const entries = payloads.map((p) => {
       const idBytes = base64urlToUint8(p.id)
       const nonceBytes = p.nonce instanceof Uint8Array ? p.nonce : new Uint8Array(p.nonce)
@@ -50,26 +62,32 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     const uint8 = new Uint8Array(buffer)
 
     let offset = 0
-    view.setUint32(offset, magic, false)
+    view.setUint32(offset, magic)
+
     offset += 4
-    view.setUint16(offset, version, false)
+    view.setUint16(offset, version)
     offset += 2
 
+    view.setUint32(offset, extra.byteLength)
+    offset += 4
+    uint8.set(extra, offset)
+    offset += extra.byteLength
+
     for (const { idBytes, nonceBytes, bodyBytes, version } of entries) {
-      view.setUint16(offset, nonceBytes.length, false)
+      view.setUint16(offset, nonceBytes.length)
       offset += 2
       uint8.set(nonceBytes, offset)
       offset += nonceBytes.length
 
-      view.setUint16(offset, idBytes.length, false)
+      view.setUint16(offset, idBytes.length)
       offset += 2
       uint8.set(idBytes, offset)
       offset += idBytes.length
 
-      view.setBigUint64(offset, version, false)
+      view.setBigUint64(offset, version)
       offset += 8
 
-      view.setBigUint64(offset, BigInt(bodyBytes.length), false)
+      view.setBigUint64(offset, BigInt(bodyBytes.length))
       offset += 8
       uint8.set(bodyBytes, offset)
       offset += bodyBytes.length
@@ -86,12 +104,12 @@ export function createContentClient(baseUrl: string, authToken: string): Storage
     if (res.status === 400 || res.status === 403 || res.status === 412) {
       const errorBody = await res.arrayBuffer()
       try {
-        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string, objectId: string }
+        const errorDecoded = decode(new Uint8Array(errorBody)) as { error: string; objectId: string }
         console.log(errorDecoded)
-        const pl = payloads.find(p => p.id === errorDecoded.objectId)
+        const pl = payloads.find((p) => p.id === errorDecoded.objectId)
         console.log(pl)
         console.log(uint8ToBase64Url(pl!.body))
-        const body = decode(pl!.body)
+        const body = decode(pl!.body) as unknown
         console.log(body)
         throw new Error(errorDecoded.error)
       } catch (e) {

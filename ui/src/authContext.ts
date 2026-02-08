@@ -1,20 +1,22 @@
 import { FollowRequests } from "pathhub-client/src/followRequest.js"
-import { PostManifestPage, Manifest, PostManifest, Versioned } from "pathhub-client/src/manifest.js"
+import { SignatureKeyPair } from "pathhub-client/src/init.js"
+import { PostManifestPage, Manifest, PostManifest, Entity, FollowerGroupState } from "pathhub-client/src/manifest.js"
 import { createContext } from "react"
-import { ClientState } from "ts-mls"
+import { MlsContext } from "ts-mls"
 
 export interface User {
   id: string
   name: string
   token: string
-  manifest: Versioned<Manifest>
-  manifestId: string
-  postManifest: Versioned<PostManifest>
-  currentPage: Versioned<PostManifestPage>
-  ownGroupState: Versioned<ClientState>
-  followRequests: Versioned<FollowRequests>
+  manifest: Entity<Manifest>
+  postManifest: Entity<PostManifest>
+  currentPage: Entity<PostManifestPage>
+  ownGroupState: Entity<FollowerGroupState>
+  followRequests: Entity<FollowRequests>
   masterKey: Uint8Array
   avatarUrl: string
+  keyPair: SignatureKeyPair
+  mlsContext: MlsContext
 }
 
 export interface AuthContextValue {
