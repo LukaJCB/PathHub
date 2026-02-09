@@ -47,7 +47,7 @@ import {
 import { batchEncryptAndStoreWithSecrets, derivePostSecret, ExtraInstruction } from "./createPost"
 import { decodeFollowerManifest, decodePrivateKeyPackage } from "./codec/decode"
 import { SignatureKeyPair } from "./init"
-import { keyPackageDecoder, keyPackageEncoder } from "ts-mls/keyPackage.js"
+import { keyPackageDecoder, keyPackageEncoder } from "ts-mls"
 import { isDefaultCredential } from "ts-mls"
 
 export interface FollowRequests {

@@ -20,7 +20,7 @@ import { allowFollow, requestFollow } from "../src/followRequest.js"
 import { createMessageClient } from "../src/http/messageClient.js"
 import { processIncoming } from "../src/inbox.js"
 import { decode } from "ts-mls"
-import { keyPackageDecoder } from "ts-mls/keyPackage.js"
+import { keyPackageDecoder } from "ts-mls"
 import { deriveGroupIdFromUserId } from "../src/mlsInteractions.js"
 import { getPageForUser } from "../src/profile.js"
 

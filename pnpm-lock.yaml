@@ -102,8 +102,8 @@ importers:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
       ts-mls:
-        specifier: 2.0.0-rc.6
-        version: 2.0.0-rc.6(@noble/ciphers@2.1.1)
+        specifier: 2.0.0-rc.7
+        version: 2.0.0-rc.7(@noble/ciphers@2.1.1)
     devDependencies:
       '@eslint/js':
         specifier: 9.37.0
@@ -208,8 +208,8 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18
       ts-mls:
-        specifier: 2.0.0-rc.6
-        version: 2.0.0-rc.6(@noble/ciphers@2.1.1)
+        specifier: 2.0.0-rc.7
+        version: 2.0.0-rc.7(@noble/ciphers@2.1.1)
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -3598,8 +3598,8 @@ packages:
     resolution: {integrity: sha512-XyLVuhBVvdJTJr2FJJV2L1pc4MwSjMhcunRVgDE9k4wbb2ee7ORYnPewxMWUav12vxyfUM686MSGsqnVRIInuw==}
     engines: {node: '>=18'}
 
-  ts-mls@2.0.0-rc.6:
-    resolution: {integrity: sha512-dcMyAMqmu0NUs/SfCE867ioR/23xAMDt5SqzW5iA5aJnOnP0MjN9t9kdfMdD9cEUDKK/Ci2pqlFRpeo1rngarw==}
+  ts-mls@2.0.0-rc.7:
+    resolution: {integrity: sha512-B/vKQWH6VQvDb5YcIgN+LN5ukD88htdbJrbobXkfLhh/jYO982dL2QmHMcey7uQZ5VgHVqaO0Sm/RijKWYRoRg==}
     peerDependencies:
       '@hpke/chacha20poly1305': 1.7.1
       '@hpke/dhkem-x448': 1.6.4
@@ -7763,7 +7763,7 @@ snapshots:
       '@ts-graphviz/common': 2.1.5
       '@ts-graphviz/core': 2.0.7
 
-  ts-mls@2.0.0-rc.6(@noble/ciphers@2.1.1):
+  ts-mls@2.0.0-rc.7(@noble/ciphers@2.1.1):
     dependencies:
       '@hpke/core': 1.7.5
       '@noble/ciphers': 2.1.1

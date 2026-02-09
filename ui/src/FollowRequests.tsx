@@ -10,7 +10,7 @@ import { createAuthenticationClient } from "pathhub-client/src/http/authenticati
 import { getUserInfo } from "pathhub-client/src/userInfo.js"
 import { getAvatarImageUrl } from "./App"
 import { Link } from "react-router"
-import { keyPackageDecoder } from "ts-mls/keyPackage.js"
+import { keyPackageDecoder } from "ts-mls"
 
 export const FollowRequestsView: React.FC = () => {
   const { user, updateUser } = useAuthRequired()
